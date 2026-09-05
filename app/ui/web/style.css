@@ -1,0 +1,1308 @@
+/* 어두운 바탕 한 벌. 색은 역할별로 이름을 두고 여기서만 정한다.
+   화면은 데스크톱 기준이다. 창을 넓히면 넓힌 만큼 쓴다.
+
+   표면은 네 단계다 — 사이드바(bg-side)가 제일 어둡고, 뜰수록 밝다.
+   그림자가 안 보이는 다크에서는 밝기 차이가 그림자를 대신한다.
+   담는 그릇에는 테두리를 두르지 않는다. 밝기 한 단계와 여백이
+   경계를 말한다. 1px 선은 **누를 수 있는 것**과 위에 뜬 것에만 남긴다 —
+   선이 아무 데나 있으면 어디를 눌러야 하는지가 안 보인다.
+   상태색은 GitHub Primer 다크 값 — 이 바탕 위에서 글자 대비 4.5:1 을
+   넘는 것을 골랐다. 순색은 다크에서 번쩍인다. */
+:root {
+  --bg-side: #0f0f11;          /* 사이드바 — 본문보다 어둡다 */
+  --bg: #141416;
+  --panel: #1c1c20;
+  --panel-2: #26262b;
+  --panel-3: #313138;          /* 모달·끌어오는 중 */
+  --line: #2a2a2e;
+  --line-strong: #3a3a40;
+  --text: #ececee;
+  --muted: #a0a0a6;
+  --faint: #77777f;  /* #6e6e77 은 panel-2 위에서 2.98 — 보조 글 기준 3.0 에 못 미쳤다 */            /* 비활성·자리표시 — 정보를 이 색에만 두지 않는다 */
+  --accent: #2f81f7;
+  --accent-hi: #5aa0ff;
+  --accent-soft: rgba(47, 129, 247, .14);
+  /* 고른 것 위에 마우스를 올렸을 때. 고른 표시(soft)보다 한 겹 진하다 —
+     안 그러면 고른 줄은 마우스를 올려도 아무 반응이 없다 */
+  --accent-soft-2: rgba(47, 129, 247, .26);
+  --ok: #3fb950;
+  --ok-soft: rgba(63, 185, 80, .14);
+  --ok-soft-2: rgba(63, 185, 80, .26);
+  --warn: #d29922;
+  --warn-soft: rgba(210, 153, 34, .15);
+  --bad: #f85149;
+  /* 색 배경 위에 놓는 글자색. 실패 배경 위의 #f85149 는 눈이 아프다 — 옅게 */
+  --bad-text: #ffb3b3;
+  --ok-text: #9de5bd;
+  --bad-soft: rgba(248, 81, 73, .14);
+  /* 모서리 세 계단. **이 값 밖의 모서리는 쓰지 않는다.**
+     글자 크기와 같은 이야기다 — 예전에는 2 · 3 · 4 · 5 · 6 · 7 · 8 · 9 ·
+     10 · 12 · 14 · 20px 열여섯 가지가 굴러다녔다. 같은 작품 표지가 자리에
+     따라 7 · 8 · 10px 이었고, 단추는 6 · 8 · 9 · 10px 이었다. 1~2px 차이는
+     하나만 보면 안 보이고 **나란히 놓으면 어긋나 보이기만 한다.**
+
+     그리고 전체를 줄였다. 크게 둥근 모서리는 웹페이지의 것이지 창에서
+     도는 도구의 것이 아니다 — 「AI 티가 난다」 는 말을 들었다.
+     한 번 줄인 3·5·8 도 아직 크다고 해서 2·4·6 까지 내렸다.
+
+     겹친 상자는 **바깥에서 한 계단 안쪽**을 쓴다. 안쪽이 바깥보다 더
+     둥글면 곡선이 서로 어긋난다 */
+  --r-1: 2px;    /* 안에 든 작은 것 — 표지 그림 · 네모칸 · 작은 단추 */
+  --r-2: 4px;    /* 누르는 것 — 단추 · 탭 · 글칸 · 목록 줄 · 알림 */
+  --r-3: 6px;    /* 담는 그릇 — 판 · 카드 · 옆칸 · 표 · 떠 있는 것 */
+  /* 알약은 999px, 동그라미는 50%. 그것은 값이 아니라 모양이라 계단 밖이다 */
+  --bar-h: 52px;
+
+  /* 글자 크기 여덟 계단. 이 값 밖의 크기는 쓰지 않는다.
+     예전에는 10 · 10.5 · 11 · 11.5 · 12 · 12.5 · 13 · 14 · 14.5 …
+     스무 가지가 굴러다녔다. 1px 씩 다른 것은 눈에는 안 보이고
+     화면끼리 어긋나 보이기만 한다. */
+  --t-micro: 10.5px;   /* 꼬리표·배지 */
+  --t-small: 11.5px;   /* 곁들이는 설명 */
+  --t-dense: 12.5px;   /* 표·목록처럼 촘촘한 곳의 본문 */
+  --t-body:  13.5px;   /* 기본 본문 — body 와 같다 */
+  --t-lead:  16px;     /* 카드 제목 */
+  --t-title: 20px;     /* 화면 제목 */
+  --t-head:  28px;     /* 첫 실행 표제 */
+  --t-hero:  40px;     /* 숫자 하나만 크게 */
+
+  /* 줄 번호를 세로로 맞춰야 하는 곳. 고정폭 글꼴에는 한글이 없어서
+     뒤에 본문 글꼴을 붙인다 — 안 그러면 한글이 글자마다 다른 글꼴로
+     떨어져 낱자 사이가 벌어진 채 찍힌다 */
+  --mono: Consolas, "D2Coding", "Pretendard Variable", "Malgun Gothic",
+          "맑은 고딕", "Yu Gothic UI", monospace;
+
+  /* 굵기 세 가지. 700 은 안 쓴다 — 이 글꼴에서 600 과 눈에 띄게
+     다르지 않으면서 뭉쳐 보인다. 위계는 크기와 색이 맡는다. */
+  --w-normal: 400;
+  --w-medium: 500;
+  --w-bold:   600;
+
+  /* 움직임. 시간이 뜻을 갖는다 —
+     빠름은 「내 손에 반응했다」, 보통은 「자리가 옮겨졌다」,
+     느림은 「다른 화면으로 넘어간다」. */
+  --t-fast: .12s;
+  --t-mid:  .22s;
+  --t-slow: .4s;
+  /* 들어오는 것은 빨리 출발해 천천히 멈춘다. 멈추는 자리가 결과다 */
+  --in:  cubic-bezier(.2, .7, .3, 1);
+  /* 나가는 것은 천천히 출발해 빨리 사라진다. 붙잡지 않는다 */
+  --out: cubic-bezier(.5, 0, 1, 1);
+}
+
+/* 동봉한 글꼴. 인터넷 없이 뜬다. 일본어 글자는 아래 폴백(Yu Gothic)이 맡는다 */
+@font-face {
+  font-family: "Pretendard Variable";
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: local("Pretendard Variable"),
+       url("fonts/PretendardVariable.woff2") format("woff2-variations");
+}
+
+* { box-sizing: border-box; }
+
+/* 숨기라는 명령이 항상 이기게 한다.
+   `.field { display: flex }` 같은 것이 브라우저의 기본 숨김을 덮어써서,
+   숨겼는데도 계속 보이는 일이 있었다. */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 13.5px/1.6 "Pretendard Variable", Pretendard, "Yu Gothic UI", "Malgun Gothic",
+       "맑은 고딕", -apple-system, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: -0.01em;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 움직임을 줄여 달라는 설정을 지킨다 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* 위쪽 막대. 사이드바와 같은 층 — 제일 어둡다 */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--bar-h);
+  padding: 0 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-side);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.bar h1 { font-size: var(--t-body); margin: 0; font-weight: var(--w-bold); letter-spacing: -0.2px; white-space: nowrap; }
+/* 지금 어느 화면인가. 앱 이름보다 한 단계 여리다 — 둘이 같은 무게면
+   무엇이 이름이고 무엇이 자리인지 안 갈린다 */
+.bar-sep { color: var(--faint); flex-shrink: 0; }
+.bar-where {
+  font-size: var(--t-dense); color: var(--muted); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+/* 앱 표식. 예전에는 9px 짜리 파란 점이었다 — 표식이라기보다 「켜져 있다」
+   는 불빛으로 보였다.
+   **앱 안에서는 바탕 없이 흰 표식만** 쓴다. 머리띠가 이미 제 바탕이라,
+   그 위에 파란 네모를 또 얹으면 딱지를 붙인 것처럼 보인다. 작업 표시줄은
+   반대다 — 거기서는 남의 아이콘들 사이라 네모가 있어야 제 영역이 생긴다.
+   그래서 `logo-mark.png`(민판)와 `icon.ico`(네모)를 따로 굽는다.
+   바탕이 없으니 자리는 좀 더 준다 — 20px */
+.logo { width: 20px; height: 20px; flex-shrink: 0; display: block; }
+.logo img { width: 100%; height: 100%; display: block; }
+.grow { flex: 1; }
+.back {
+  background: none; border: none; color: var(--muted);
+  font-size: var(--t-title); cursor: pointer; padding: 0 6px;
+}
+.back:hover { color: var(--text); }
+
+/* 화면은 너비를 제한하지 않는다. 모니터가 넓으면 넓게 쓴다 */
+.screen { padding: 22px 24px 32px; }
+.screen.tall {
+  height: calc(100vh - var(--bar-h));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+}
+.muted { color: var(--muted); font-size: var(--t-body); }
+.hint { color: var(--muted); font-size: var(--t-body); margin: 0; }
+
+code { background: var(--panel-2); padding: 1px 5px; border-radius: var(--r-1); font-size: var(--t-dense); }
+@media (max-width: 900px) { .worktop { grid-template-columns: 1fr; } }
+
+.drop {
+  border: 2px dashed var(--line); border-radius: var(--r-3);
+  padding: 26px 20px; text-align: center; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  transition: border-color var(--t-fast) var(--in), background var(--t-fast) var(--in);
+}
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop-icon { font-size: var(--t-head); }
+
+.side { display: flex; flex-direction: column; gap: 10px; }
+
+/* 작품 머리 — 오른쪽 맨 위. 상자(.work)와 접기 화살(.fold)이 있었는데
+   좌/우로 나누면서 없앴다. 오른쪽에는 고른 작품 하나만 뜬다 */
+/* **880×620 에서 깨졌다.** 오른쪽 칸이 518px 인데 단추 넷이 420px 를 먹어
+   글 칸이 0 이 됐다 — 「RJ01234567 · 트랙 4개」 가 한 글자씩 세로로 섰다.
+   글 칸에 최소 폭을 주고, 모자라면 단추 줄이 아래로 내려간다. */
+.work-head { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+/* 번역·검수 중의 홀쭉한 작품 머리. 일하는 칸이 화면을 쓰게 한다 */
+#work-head.compact .cover { width: 44px; height: 44px; font-size: var(--t-lead); border-radius: var(--r-1); }
+#work-head.compact .tags, #work-head.compact .work-status { display: none; }
+#work-head.compact .work-title { font-size: var(--t-body); -webkit-line-clamp: 1; }
+#work-head.compact .work-sub, #work-head.compact .work-id { font-size: var(--t-small); }
+.work-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+/* 되돌려야 하는 것들(번역 다시 · 작품 빼기)은 금 하나 건너, 한 단 조용하게 */
+.work-actions .act-sep { width: 1px; height: 18px; background: var(--line); margin: 0 2px; }
+.work-actions .ghost.small.quiet { color: var(--muted); border-color: transparent; }
+.work-actions .ghost.small.quiet:hover { color: var(--text); border-color: var(--line-strong); }
+.cover {
+  width: 96px; height: 96px; flex-shrink: 0; border-radius: var(--r-1);
+  background: var(--panel);
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--t-head); color: var(--muted); overflow: hidden;
+}
+.cover img { width: 100%; height: 100%; object-fit: cover; }
+/* `flex: 1` 은 기준 폭이 0 이라 **아무리 좁아도 안 꺾인다** — 글 칸이 44px 가 됐다.
+   기준 220px 을 주면 그보다 좁아질 때 단추 줄이 아래로 내려간다 */
+.work-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+/* **좁은 창에서는 단추 줄을 아래로 내린다.** flex-basis 로 「모자라면 꺾이게」
+   하려다 기본 창(1100)에서도 꺾여 표가 50px 밀렸다. 창 폭으로 딱 자른다 —
+   1000 아래면 오른쪽 칸이 640 이 안 되고, 거기서는 단추 넷(420)과 글이 못 산다 */
+@media (max-width: 1000px) {
+  .work-actions { flex-basis: 100%; margin-left: 0; justify-content: flex-start; }
+}
+.work-id { color: var(--muted); font-size: var(--t-dense); font-variant-numeric: tabular-nums; }
+.work-title {
+  font-weight: var(--w-bold); font-size: var(--t-lead); line-height: 1.35;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.work-sub { color: var(--muted); font-size: var(--t-body); }
+.work-status { display: flex; align-items: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.bar-track { width: 160px; height: 6px; background: var(--panel); border-radius: 999px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width var(--t-mid) var(--in); }
+.bar-fill.done { background: var(--ok); }
+.bad-text { color: var(--bad); font-size: var(--t-body); }
+.tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+.tag2 {
+  font-size: var(--t-small); padding: 2px 8px; border-radius: 999px;
+  background: var(--panel-2); color: var(--muted);
+}
+.tag2.warn { border-color: var(--warn); color: var(--warn); }
+
+/* 품번을 모를 때 물어보는 자리 */
+.ask {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: var(--r-2);
+  background: var(--panel); border: 1px dashed var(--line);
+}
+.ask input { flex: 0 0 200px; }
+.ask .muted { flex: 1; min-width: 200px; }
+
+/* 트랙 — **표(줄)** 다.
+   예전에는 340px 짜리 카드를 격자로 깔았다. 작품 하나에 트랙 열다섯이면
+   화면을 한참 굴려야 했고, 어느 것이 어디까지 왔는지 훑을 수가 없었다. */
+.jobs { display:flex; flex-direction:column; gap:8px; margin-top:0; overflow:auto; min-height:0; }
+/* 이름과 단추가 **한 줄**에 온다. 세로로 쌓으면 트랙 하나가 110px 이 되어
+   열다섯 개 중 넷밖에 안 보인다 — 표로 바꾼 뜻이 없어진다.
+   진행 막대·검사표처럼 줄을 통째로 써야 하는 것만 아래로 접힌다(.job-wide) */
+.job {
+  background: var(--panel);
+  border-radius: var(--r-3); padding: 13px 15px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+}
+.job > .stages { flex: 1 1 100%; }
+/* 오른쪽이 번역·검수를 띄우고 있을 때의 홀쭉한 판. 단추 줄만 남는다 */
+.job.slim { padding: 8px 12px; border-radius: var(--r-3); }
+.job.slim .job-name { font-size: var(--t-body); }
+.job > .job-head { flex: 1 1 200px; min-width: 0; }
+.job > .job-foot { flex: 0 0 auto; margin-left: auto; }
+.job > .track, .job > .job-msg, .job > .job-clock,
+.job > .job-batches, .job > .job-hint,
+.job > .findings, .job > .compare { flex: 1 1 100%; }
+/* 지금 보고 있는 작품 — 왼쪽 목록에서 고른 것 */
+.wk-head.on { background: var(--accent-soft); }
+.job-head { display: flex; align-items: center; gap: 10px; }
+.job-name { font-weight: var(--w-bold); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag {
+  font-size: var(--t-dense); padding: 2px 9px; border-radius: 999px;
+  background: var(--panel-2); color: var(--muted); white-space: nowrap;
+}
+.tag.run { background: var(--accent-soft); color: var(--accent-hi); }
+.tag.done { background: var(--ok-soft); color: var(--ok); }
+.tag.fail { background: var(--bad-soft); color: var(--bad); }
+/* 말이 없어 건너뛴 것. 고장이 아니므로 빨강으로 두지 않는다 */
+.tag.skip { background: var(--panel-2); color: var(--muted); }
+/* 단계가 넘어가도 안 지워지는 한마디. **트랙 카드 안에서만** 상자로 띄운다.
+   예전에는 이것을 `.hint` 로 두어서, 같은 이름을 쓰는 열네 자리가 죄다
+   파란 상자가 됐다. 번역 화면 오른쪽 안내문, 설정의 설명글, 자막 고치기
+   아래 안내가 전부 그랬다 — 그냥 회색 글씨여야 할 것들이다. */
+.job-hint {
+  margin-top: 6px; padding: 7px 10px; border-radius: var(--r-1);
+  background: var(--accent-soft); border-left: 3px solid var(--accent);
+  font-size: var(--t-body); color: var(--text); line-height: 1.5;
+}
+.job-msg { color: var(--muted); font-size: var(--t-body); }
+.x {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: var(--t-body); padding: 2px 4px; line-height: 1;
+}
+.x:hover { color: var(--bad); }
+.job-foot { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.track { height: 5px; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+.fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width var(--t-mid) var(--in); }
+.fill.done { background: var(--ok); }
+
+/* 검사표 — 종류별로 접고, 길어지면 안에서만 스크롤한다.
+   스무 줄씩 늘어나면 카드 높이가 제각각이 되어 볼 수가 없다. */
+.findings {
+  padding: 10px 12px; border-radius: var(--r-2); background: var(--panel-2);
+  max-height: 200px; overflow: auto; margin-top: auto;
+}
+.finding { display: flex; gap: 10px; font-size: var(--t-body); padding: 3px 0; align-items: baseline; }
+.detail { padding-left: 14px; border-left: 2px solid var(--line); margin: 4px 0 8px; }
+.more {
+  background: none; border: none; color: var(--accent);
+  font-size: var(--t-dense); cursor: pointer; padding: 0 4px; white-space: nowrap;
+}
+.more:hover { text-decoration: underline; }
+.finding .at { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.finding.주의 .msg { color: var(--warn); }
+
+/* 미성년 의심은 다른 것들과 섞이면 안 된다. 이건 계정이 걸린 문제다. */
+.finding.막음 { padding: 8px; margin: 4px 0; border-radius: var(--r-2); background: var(--bad-soft); }
+.finding.막음 .msg { color: var(--bad-text); font-weight: var(--w-bold); }
+
+/* 번역 화면 — 좌우 두 칸, 스크롤은 칸 안에서만 */
+.tr-head { display: flex; align-items: center; gap: 16px; flex-shrink: 0; }
+#tr-hint { max-width: 360px; text-align: right; line-height: 1.5; }
+
+.two {
+  flex: 1; min-height: 0;
+  display: grid; gap: 14px;
+  grid-template-columns: 1fr 1fr;
+}
+/* 좁으면 위아래로 쌓인다. **행 높이를 나눠 줘야** 한다 — 안 그러면 위 판이
+   내용만큼 늘어나 아래 판의 「넣기」 가 화면 밖으로 밀린다 (880×620 에서 그랬다) */
+@media (max-width: 1000px) { .two { grid-template-columns: 1fr; grid-auto-rows: minmax(220px, 1fr); } }
+
+.pane {
+  display: flex; flex-direction: column; min-height: 0;
+  background: var(--panel); border-radius: var(--r-3);
+  overflow: hidden;
+}
+/* 칸 머리는 이름표일 뿐이다. 여백을 줄여 본문에 자리를 준다 */
+.pane-head {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 9px 16px; border-bottom: 1px solid var(--line);
+}
+.pane-body {
+  flex: 1; min-height: 0; overflow: auto; padding: 12px 16px;
+  font: var(--t-body)/1.7 var(--mono);
+}
+.pane-foot {
+  display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--line);
+  align-items: center; flex-wrap: wrap;
+}
+
+/* 내 컴퓨터에서 도는 것. 밖으로 안 나간다는 뜻으로 초록.
+   초록 배경은 다크에서 번쩍여서, 초록 글자 + 옅은 초록 바탕으로 바꿨다 */
+button.go {
+  background: var(--ok-soft); border: 1px solid transparent; color: var(--ok); font-weight: var(--w-bold);
+}
+button.go:hover:not(:disabled) { border-color: var(--ok); }
+button.go:disabled { opacity: .55; }
+/* 켜야 하거나 받아야 할 때. 아직 못 누른다는 뜻으로 주황 */
+button.go.needs { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+button.go.needs:hover:not(:disabled) { border-color: var(--warn); }
+#local-now-note { line-height: 1.4; max-width: 240px; }
+
+/* 묶음 목록. 긴 트랙은 열여덟 개까지 나온다 */
+/* 묶음 목록. 위쪽 줄에 얹히므로 상자를 두르지 않는다.
+   단계표시·트랙머리·묶음목록이 3층으로 쌓이면 시선이 흩어진다 */
+.batches {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 0 2px 2px;
+}
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-b {
+  font: inherit; font-size: var(--t-body); font-variant-numeric: tabular-nums;
+  min-width: 34px; padding: 5px 9px; border-radius: var(--r-2); cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line); color: var(--muted);
+}
+.chip-b:hover { color: var(--text); border-color: var(--accent); }
+/* 끝난 것도 목록에서 빼지 않는다. 무엇을 했고 무엇이 남았는지 보여야 한다 */
+.chip-b.done { background: var(--ok-soft); border-color: transparent; color: var(--ok); }
+.chip-b.now { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+.chip-b.retry { border-color: var(--warn); color: var(--warn); }
+/* 복사해서 다른 창에 물려 둔 것. 답이 들어오면 done 이 이긴다 */
+.chip-b.out { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+/* 지금 보는 묶음을 복사했을 때 — 파랑은 유지하고 보라 밑줄로 표시한다 */
+.chip-b.now.out {
+  background: var(--accent-soft); border-color: var(--accent); color: var(--text);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+
+.line { display: flex; gap: 12px; }
+.line .n { color: var(--muted); min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.line .t { -webkit-user-select: text; user-select: text; }
+
+/* ── 제목 번역 화면 ────────────────────────────────────
+   규칙이 아예 없어서 두 가지가 한꺼번에 망가져 있었다.
+
+   ① 위의 두 칸이 한 줄 높이로 짜부라졌다 — 아래 작품 목록이 제 키를
+      다 차지하는 바람에 `flex:1` 인 두 칸이 밀려 나갔다
+   ② 입력칸이 계단처럼 어긋났다 — 줄이 `flex` 라서 일본어 길이만큼
+      오른쪽으로 밀렸다. 격자로 세워야 세로로 맞는다 */
+#screen-titles .two { flex: 0 0 clamp(180px, 26vh, 280px); }
+#titles-list {
+  flex: 1; min-height: 0; overflow: auto;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.title-work .pane-body { overflow: visible; }
+.title-work .line {
+  display: grid; grid-template-columns: 68px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px; align-items: center; padding: 4px 0;
+}
+.title-work .line .n {
+  min-width: 0; text-align: left; color: var(--faint);
+  font: var(--t-dense)/1.5 var(--mono);
+}
+.title-work .line .ja {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  -webkit-user-select: text; user-select: text;
+}
+.title-work .line input {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line);
+  color: var(--text); border-radius: var(--r-2); padding: 7px 10px;
+  font: inherit; font-size: var(--t-body);
+}
+.title-work .line input:focus { outline: none; border-color: var(--accent); }
+/* 「이 작품만」 줄. 글상자가 남는 자리를 쓴다 */
+.pane-foot.quiet { background: none; }
+.pane-foot.quiet input {
+  flex: 1; min-width: 0; background: var(--panel-2);
+  border: 1px solid var(--line); color: var(--text);
+  border-radius: var(--r-2); padding: 7px 10px; font: inherit; font-size: var(--t-body);
+}
+.pane-foot.quiet input:focus { outline: none; border-color: var(--accent); }
+
+textarea.pane-body {
+  width: 100%; background: transparent; border: none; color: var(--text);
+  resize: none; -webkit-user-select: text; user-select: text;
+}
+textarea:focus { outline: none; }
+
+/* 설정.
+   **화면 전체에 최대폭을 준다.** 설정은 읽고 고르는 화면이라 폭이 넓다고
+   얻는 것이 없다 — 1280px 에 카드를 세 열로 깔았더니 키가 제각각이라
+   구멍이 숭숭 뚫렸다. 탭·카드·발치가 같은 폭으로 정렬돼야 한 화면으로
+   보인다. 창이 좁아지면 그냥 그 폭을 따른다 — 반응형이 공짜다 */
+#screen-settings { max-width: 780px; margin: 0 auto; width: 100%; }
+
+/* 설정 탭: 한 줄 세로 흐름. 카드 키가 제각각이라 격자로 깔면 줄 높이가
+   제일 큰 카드를 따라가 카드 사이가 빈다. 세로로 쌓으면 원리적으로 안 빈다 */
+#tab-set { display: flex; flex-direction: column; gap: 14px; }
+.group {
+  background: var(--panel);
+  border-radius: var(--r-3); padding: 20px 22px;
+}
+/* 칸 이름. 본문보다 **크고 밝아야** 한다 — 같은 크기에 더 흐리면
+   제목이 본문보다 덜 중요해 보인다. 위계를 거꾸로 세운 셈이었다 */
+.group h2 { font-size: var(--t-lead); margin: 0 0 14px; color: var(--text); font-weight: var(--w-bold); }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; font-size: var(--t-body); }
+.field > span { color: var(--muted); font-size: var(--t-body); }
+input[type=text], input[type=password], input[type=number], select {
+  padding: 9px 11px; border-radius: var(--r-2); background: var(--panel-2);
+  border: 1px solid var(--line); color: var(--text); font: inherit;
+  -webkit-user-select: text; user-select: text;
+}
+input:focus, select:focus { outline: none; border-color: var(--accent); }
+.check { display: flex; align-items: center; gap: 9px; margin: 9px 0; font-size: var(--t-body); cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.radios { display: grid; gap: 8px; }
+.radio {
+  display: flex; align-items: center; gap: 10px; padding: 11px 13px;
+  border: 1px solid var(--line); border-radius: var(--r-2); cursor: pointer;
+  transition: border-color var(--t-fast) var(--in), background var(--t-fast) var(--in);
+}
+.radio:hover { border-color: var(--accent); }
+.radio.on { border-color: var(--accent); background: var(--accent-soft); }
+.radio input { accent-color: var(--accent); }
+.radio .who { font-weight: var(--w-bold); font-size: var(--t-body); }
+.radio .why { color: var(--muted); font-size: var(--t-dense); }
+.radio .col { display: flex; flex-direction: column; flex: 1; }
+.badge { font-size: var(--t-small); padding: 2px 7px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); }
+
+/* 단추 */
+button { font: inherit; }
+.primary {
+  background: var(--accent); color: #fff; border: none;
+  padding: 10px 18px; border-radius: var(--r-2); font-weight: var(--w-bold); cursor: pointer;
+  transition: filter var(--t-fast) var(--in);
+}
+.primary:hover { filter: brightness(1.1); }
+.primary:disabled { opacity: .4; cursor: default; filter: none; }
+/* 큰 단추. **줄을 통째로 먹지 않는다.**
+   예전에는 `width: 100%` 였다. 옆에 다른 단추를 세우면 아래로 밀려나서,
+   「복사하기」 옆의 「내 컴퓨터 AI로 번역」이 다음 줄로 떨어졌다.
+   한 줄을 다 쓰고 싶은 자리는 `.wide` 를 따로 붙인다. */
+.primary.big, .go.big { padding: 12px 28px; font-size: var(--t-lead); }
+.primary.big.wide, .go.big.wide { width: 100%; padding: 13px; }
+.ghost {
+  background: none; color: var(--muted); border: 1px solid var(--line);
+  padding: 10px 16px; border-radius: var(--r-2); cursor: pointer; white-space: nowrap;
+}
+.ghost:hover { color: var(--text); border-color: var(--accent); }
+.ghost.small { padding: 6px 12px; font-size: var(--t-body); }
+.link { text-decoration: none; display: inline-block; text-align: center; }
+
+/* 번역 화면 — 작품 → 트랙 → 묶음 세 층.
+   실제 구조가 그런데 화면에는 트랙만 일렬로 늘어서 있었다. */
+.tr-lay { display:grid; grid-template-columns:300px 1fr; gap:14px; flex:1; min-height:0; }
+/* 사이드바는 본문보다 한 단계 어둡다. 시선이 오른쪽 일하는 칸으로 모인다 */
+.tr-side {
+  background:var(--bg-side); border-radius:var(--r-3);
+  overflow:auto; padding:9px; min-height:0;
+  display:flex; flex-direction:column;
+}
+.tr-side > #work-list { flex:1; }
+.side-h { padding:4px 8px 9px; display:flex; align-items:center; gap:8px; }
+.side-h h3 { font-size: var(--t-small); color:var(--faint); margin:0; font-weight: var(--w-bold); letter-spacing:.5px; }
+.side-h .ghost.small { padding:2px 8px; font-size: var(--t-small); border-color:transparent; }
+
+/* 사이드바 아래 넣기 띠. 큰 드롭존이 사라진 뒤의 넣는 길 */
+.side-drop {
+  margin-top:8px; padding:10px; flex-shrink:0;
+  border:1.5px dashed var(--line-strong); border-radius:var(--r-2);
+  background:none; color:var(--faint); font:inherit; font-size: var(--t-dense);
+  cursor:pointer; text-align:center; transition: border-color var(--t-fast) var(--in), color var(--t-fast) var(--in);
+}
+.side-drop:hover, .side-drop.over { border-color:var(--accent); color:var(--muted); }
+/* **안 들어가면 스크롤한다.** `.screen.tall` 이 overflow:hidden 이라 창이 작으면
+   아래 카드와 「넣기」 단추가 잘려 나갔다. 잘리는 것보다 스크롤이 낫다 */
+.tr-main { display:flex; flex-direction:column; gap:11px; min-width:0; min-height:0; overflow-y:auto; }
+/* 오른쪽 칸의 한 모드. 번역은 화면이 아니라 여기 하나다 */
+.tr-mode { display:flex; flex-direction:column; gap:11px; flex:1; min-height:0; }
+.tr-head2 { display:flex; align-items:center; gap:12px; }
+.tree-top .tw { font-size: var(--t-body); font-weight: var(--w-bold); }
+.tree-top .muted { margin-left:auto; }
+
+/* 작품 한 칸 */
+.wk { border-radius:var(--r-2); margin-bottom:4px; }
+.wk-head {
+  display:flex; gap:9px; padding:8px; border-radius:var(--r-2); cursor:pointer;
+  align-items:center; width:100%; background:none; border:none; color:var(--text);
+  font:inherit; text-align:left;
+}
+.wk-head:hover { background:var(--panel-2); }
+.wk.on > .wk-head { background:var(--accent-soft); }
+.wk.on > .wk-head:hover { background:var(--accent-soft-2); }
+.only-note {
+  margin:2px 10px 6px; padding:6px 9px; border-radius:var(--r-2);
+  background:var(--warn-soft); color:var(--warn);
+  font-size: var(--t-micro); line-height:1.45;
+}
+#work-side > #start { margin:0 10px 8px; }
+.wk-fold {
+  margin-left:auto; flex-shrink:0; padding:2px 6px; border-radius:var(--r-1);
+  color:var(--faint); font-size: var(--t-dense); cursor:pointer; line-height:1;
+}
+.wk-fold:hover { color:var(--text); background:var(--panel-3); }
+.wk-head img { width:42px; height:42px; border-radius:var(--r-1); object-fit:cover; flex-shrink:0; }
+.wk-face {
+  width:42px; height:42px; border-radius:var(--r-1); flex-shrink:0; background:var(--panel-2);
+  display:flex; align-items:center; justify-content:center; font-size: var(--t-lead); color:var(--muted);
+}
+.wk-t { min-width:0; flex:1; display:flex; flex-direction:column; gap:2px; }
+.wk-name { font-size: var(--t-body); font-weight: var(--w-bold); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wk-sub { font-size: var(--t-small); color:var(--muted); }
+
+/* 그 안의 트랙. 점 하나가 묶음 하나다 */
+.trs { padding:1px 0 6px 10px; display:flex; flex-direction:column; gap:1px; }
+.tr {
+  display:flex; flex-direction:column; gap:4px; padding:6px 9px; border-radius:var(--r-2);
+  cursor:pointer; border-left:2px solid transparent; width:100%;
+  background:none; border-top:none; border-right:none; border-bottom:none;
+  color:inherit; font:inherit; text-align:left;
+}
+.tr:hover { background:var(--panel-2); }
+.tr.on { background:var(--accent-soft); border-left-color:var(--accent); }
+.tr.on:hover { background:var(--accent-soft-2); }
+.tr-top { display:flex; align-items:center; gap:7px; font-size: var(--t-dense); color:var(--muted); }
+.tr.on .tr-top { color:var(--text); }
+.tr.fin .tr-top { color:var(--faint); }
+.tr-n { width:14px; text-align:right; font-variant-numeric:tabular-nums; }
+.tr-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.tr-k { font-size: var(--t-micro); color:var(--faint); font-variant-numeric:tabular-nums; }
+/* 봐야 할 것이 있는 트랙. 오른쪽이 고른 트랙 하나만 그리므로 어느
+   트랙에 검사표가 붙었는지는 여기서밖에 못 본다 */
+.tr-warn { font-size: var(--t-micro); color:var(--warn); }
+.tr-k.bad { color:var(--bad); }
+/* 점 하나가 단위 하나. **두 화면이 같은 부품을 쓴다** —
+   왼쪽 여백이 여기 박혀 있어서 나무 밖에서는 어긋났다.
+   자리는 쓰는 쪽에서 준다 */
+.dots { display:flex; gap:3px; flex:1; }
+.dots i { flex:1; height:4px; border-radius:999px; background:var(--panel-3); }
+.dots i.done { background:var(--ok); }
+.dots i.now { background:var(--accent); }
+
+/* 트랙 한 줄의 네 단계 파이프 바 — 넣기·받아쓰기·번역·자막.
+   열어 보지 않아도 어디까지 왔는지 나무에서 보인다 */
+.pipe { display:flex; gap:2px; flex-shrink:0; }
+.pipe i { width:10px; height:4px; border-radius:999px; background:var(--panel-3); }  /* 4px 짜리에 2px 은 곧 알약이다 — 값이 아니라 모양 쪽이다 */
+.pipe i.d { background:var(--ok); }
+.pipe i.h { background:var(--accent); }
+.pipe i.x { background:var(--bad); }
+
+/* 오른쪽 트랙 카드의 네 단계 상황판. 파이프 바와 같은 셈, 이름과 값을 함께 */
+.stages {
+  flex:1 1 100%;
+  display:grid; grid-template-columns:repeat(4, 1fr);
+  background:var(--panel-2); border-radius:var(--r-2);
+  padding:10px 4px; margin:4px 0 2px;
+}
+.stage { display:flex; align-items:center; gap:9px; padding:0 12px; min-width:0; }
+.stage + .stage { border-left:1px solid var(--line); }
+.s-dot {
+  width:22px; height:22px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  font-size: var(--t-small); font-weight: var(--w-bold);
+  background:var(--panel-3); color:var(--faint);
+}
+.stage.d .s-dot { background:var(--ok-soft); color:var(--ok); }
+.stage.h .s-dot { background:var(--accent); color:#fff; }
+.stage.x .s-dot { background:var(--bad-soft); color:var(--bad); }
+.s-t { display:flex; flex-direction:column; min-width:0; }
+.s-t b { font-size: var(--t-dense); font-weight: var(--w-bold); color:var(--muted); }
+.stage.d .s-t b, .stage.h .s-t b { color:var(--text); }
+.s-t span {
+  font-size: var(--t-small); color:var(--faint); font-variant-numeric:tabular-nums;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.stage.h .s-t span { color:var(--accent-hi); }
+.stage.x .s-t span { color:var(--bad); }
+
+/* 나무 안에서는 트랙 번호만큼 들여 쓴다 */
+.tr .dots { padding-left:21px; }
+/* 받아쓰는 중인 트랙의 흐르는 막대. 점 막대와 같은 자리에 든다 */
+.tr .track.tr-run { margin-left:21px; height:4px; }
+
+/* 작업 화면 트랙 카드의 묶음 줄 */
+.job-batches { display:flex; align-items:center; gap:8px; margin-top:6px; }
+.job-batches .muted { font-size: var(--t-micro); font-variant-numeric:tabular-nums; }
+
+.batches .lv { font-size: var(--t-small); color:var(--muted); letter-spacing:.4px; }
+
+/* 맨 위 VRAM 계기. 자리가 모자라면 받아쓰기가 오류도 없이 죽는데,
+   그것을 미리 알아챌 방법이 여기 말고는 없었다 */
+.vram { display: flex; align-items: center; gap: 8px; font-size: var(--t-dense); color: var(--muted); }
+.vram-label { letter-spacing: .3px; }
+.vram-track {
+  width: 96px; height: 6px; border-radius: 999px;
+  background: var(--panel-2); overflow: hidden; display: block;
+}
+.vram-fill {
+  display: block; height: 100%; width: 0;
+  background: var(--ok); border-radius: 999px; transition: width var(--t-slow) var(--in), background var(--t-slow) var(--in);
+}
+/* 노랑이면 슬슬 위험, 빨강이면 받아쓰기 모델이 안 들어간다 */
+.vram-fill.warn { background: var(--warn); }
+.vram-fill.bad { background: var(--bad); }
+.vram-text { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* 클릭이 선택만 할 때도 눌렸다는 것이 보여야 한다. 같은 작품 안에서는
+   하이라이트만 옮겨 가서 죽은 클릭처럼 느껴진다 */
+.flash { animation: 번쩍임 .65s ease-out; }
+@keyframes 번쩍임 {
+  0% { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+  100% { box-shadow: inset 0 0 0 2px transparent; }
+}
+
+/* 눌리는 느낌. 눌렀는지 아닌지 모르겠다는 소리를 들었다 */
+button { transition: transform var(--t-fast) var(--in), filter var(--t-fast) var(--in); }
+/* **키보드로 다니는 사람에게 지금 어디인지.** `:focus-visible` 이 하나도 없어서
+   Tab 을 눌러도 아무것도 안 보였다. 마우스 클릭에는 안 뜬다 — 그게 focus-visible 이다 */
+:where(button, [role=tab], input, textarea, select, .onb-pick, .tr, .trow, .radio, .pick):focus-visible {
+  outline: 2px solid var(--accent-hi); outline-offset: 2px;
+}
+button:active:not(:disabled) { transform: translateY(1px) scale(.985); filter: brightness(.92); }
+button:disabled { cursor: default; opacity: .55; }
+
+/* 누르자마자 도는 표시. 창구가 답할 때까지의 빈 시간을 메운다 */
+.spin {
+  display: inline-block; width: 12px; height: 12px; margin-right: 7px;
+  border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+  border-radius: 50%; animation: 돌기 .7s linear infinite; vertical-align: -2px;
+}
+@keyframes 돌기 { to { transform: rotate(360deg); } }
+
+/* 지금 쓸 수 있나 — 한 줄로. 예전에는 「1. 받기 / 2. 켜기 / 3. 모델 받기」
+   세 줄을 늘어놓아서, 다 읽어야 지금 뭘 눌러야 하는지 알 수 있었다 */
+.ready {
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 13px; border-radius: var(--r-2);
+  background: var(--panel-2);
+}
+.ready-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.ready-dot.ok { background: var(--ok); }
+.ready-dot.warn { background: var(--warn); }
+.ready-dot.bad { background: var(--bad); }
+.ready #local-ready-text { flex: 1; }
+button.small { padding: 6px 14px; font-size: var(--t-body); }
+
+/* 모델 고르기 — **성격이 제일 크게, 이름은 아래 작은 글씨로.**
+   `qwen2.5:14b` 를 보고 무엇을 골라야 하는지 알 수가 없다 */
+.picks { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.pick {
+  display: flex; flex-direction: column; gap: 3px; text-align: left;
+  padding: 11px 13px; border-radius: var(--r-2); cursor: pointer;
+  background: var(--panel); border: 1px solid var(--line);
+  color: var(--text); font: inherit; position: relative;
+  transition: border-color var(--t-fast) var(--in), background var(--t-fast) var(--in);
+}
+.pick:hover { border-color: var(--accent); background: var(--panel-2); }
+.pick.on { border-color: var(--accent); background: var(--accent-soft); }
+.pick.off { opacity: .45; cursor: default; }
+.pick.off:hover { border-color: var(--line); background: var(--panel); }
+.pick-title { font-weight: var(--w-bold); font-size: var(--t-body); }
+.pick-note { color: var(--muted); font-size: var(--t-dense); line-height: 1.45; }
+/* 이름은 있어야 한다. 없애면 `ollama pull` 을 칠 때 못 찾는다 */
+.pick-name { color: var(--faint); font-size: var(--t-small); margin-top: 3px; word-break: break-all; }
+.pick-do {
+  position: absolute; top: 10px; right: 11px;
+  font-size: var(--t-small); padding: 2px 9px; border-radius: 999px;
+  background: var(--accent); color: #fff;
+}
+
+/* 웬만하면 안 열어도 되는 것 */
+.deep summary { color: var(--muted); font-size: var(--t-body); cursor: pointer; padding: 4px 0; }
+.deep[open] summary { margin-bottom: 8px; }
+
+/* 내 컴퓨터 AI 가 번역하는 동안. 받은 줄 수만큼 막대가 찬다 */
+.local-run { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 6px; }
+.local-run .track { height: 6px; }
+.local-run .fill { transition: width var(--t-mid) var(--in); }
+
+/* 아직 한 줄도 안 왔을 때. 멈춘 것이 아니라는 것만 알려 주면 된다 */
+.local-run.waiting .fill {
+  width: 35% !important;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: 흐르기 1.1s ease-in-out infinite;
+}
+@keyframes 흐르기 {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+.local-run .track { overflow: hidden; }
+
+/* 막대 밑에 「4분 지남 · 약 7분 남음」. 멈춘 것인지 도는 것인지 알려 준다 */
+.job-clock { margin-top: 5px; font-size: var(--t-dense); color: var(--muted); }
+
+.actions { display: flex; gap: 10px; margin-top: 18px; align-items: center; }
+
+/* 「저장했습니다」. 저장 단추를 없앤 대신 이것이 그 자리를 알려 준다.
+   아무 표시가 없으면 정말 저장됐는지 알 수 없어서 다시 누르러 온다 */
+.saved-note { margin-right: auto; transition: color var(--t-fast) var(--in); }
+.saved-note.on { color: var(--ok); }
+
+.notice {
+  padding: 11px 14px; border-radius: var(--r-2); flex-shrink: 0;
+  background: var(--panel-2); color: var(--muted); font-size: var(--t-body); white-space: pre-line;
+}
+.notice.bad { background: var(--bad-soft); color: var(--bad-text); }
+.notice.ok { background: var(--ok-soft); color: var(--ok-text); }
+
+/* 받아쓴 것을 창 안에서 바로 본다. 파일로 뱉으면 그걸 또 열어야 한다.
+   **떠 있는 창이 아니라 작업 화면 오른쪽 하나다.** 창으로 띄우면 한 트랙을
+   보고 닫고 다음 트랙을 목록에서 다시 찾아 눌러야 했다 */
+.viewer-pane {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  background: var(--panel);
+  border-radius: var(--r-3); overflow-y: auto; /* hidden 이었다 — 880×620 에서 검수 「넣기」 가 잘려 누를 수 없었다. 모자라면 이 칸이 스크롤한다 */
+}
+/* 「한 줄씩」 칸이 남은 높이를 다 가져야 **줄 목록만** 구른다.
+   안 그러면 140줄이 통째로 늘어나 칸 전체가 구르고, 머리와 거르개가 화면
+   밖으로 밀려 올라간다 */
+#viewer-one { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* 안에 든 「통째로」 두 칸도 남은 높이를 나눠 가진다 */
+.viewer-pane > .two { margin: 12px; }
+/* 번역(복붙) 칸. 예전의 번역 화면이 통째로 탭 안으로 들어왔다 —
+   창 가장자리에 붙지 않게 안쪽 여백만 준다 */
+#viewer-tr { padding: 10px 12px 12px; }
+.viewer-head {
+  display: grid; grid-template-columns: 70px 1fr 1fr; gap: 12px;
+  padding: 8px 16px; border-bottom: 1px solid var(--line);
+  color: var(--muted); font-size: var(--t-dense);
+}
+.edit-row {
+  display: grid; grid-template-columns: 70px 1fr 1fr; gap: 12px;
+  align-items: start; padding: 3px 0;
+}
+.edit-row .ja { -webkit-user-select: text; user-select: text; }
+.edit-row input {
+  width: 100%; padding: 4px 8px; border-radius: var(--r-2); font: inherit;
+  background: var(--panel-2); border: 1px solid transparent; color: var(--text);
+}
+.edit-row input:focus { border-color: var(--accent); outline: none; }
+.edit-row input.changed { border-color: var(--warn); }
+.viewer-pane .pane-head { gap: 8px; }
+
+/* 내 컴퓨터에서 도는 번역 모델 설정 */
+.ok-text { color: var(--ok); font-size: var(--t-body); }
+.row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+/* 이미 받아 둔 모델이 여러 개면 한 줄에 다 안 들어간다 */
+.row.wrap { flex-wrap: wrap; }
+.warn-box {
+  border-left: 3px solid var(--accent);
+  background: rgba(107, 138, 253, .08);
+  padding: 8px 10px;
+  border-radius: 0 var(--r-2) var(--r-2) 0;
+  line-height: 1.5;
+}
+.steps li.done { color: var(--ok); }
+.steps li.done b { background: rgba(78, 201, 138, .18); color: var(--ok); }
+.steps li.done b::after { content: "✓"; }
+.steps li.done b { font-size: 0; }
+.steps li.done b::after { font-size: var(--t-small); }
+.steps li.now { color: var(--text); background: var(--accent-soft); }
+.steps li.now b { background: var(--accent); color: #fff; }
+
+/* 액션 줄 — 지금 눌러야 할 것이 항상 맨 왼쪽. 얇게 — 일하는 칸이 주인공이다 */
+.actionbar {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap;
+}
+.actionbar .tally { font-size: var(--t-body); color: var(--text); font-variant-numeric: tabular-nums; } /* 흐린 작은 글이었다. 트랙 50개인 사람이 제일 먼저 보는 줄이다 */
+.primary.go { background: var(--ok); border: none; color: #fff; }
+.ghost.quiet { opacity: .6; }
+.ghost.quiet:hover { opacity: 1; }
+
+/* 드롭존은 파일이 들어오면 얇아진다. 목록에 자리를 준다 */
+.drop.thin {
+  flex-direction: row; gap: 12px; padding: 10px 16px;
+  min-height: 0; margin-bottom: 14px;
+}
+.drop.thin .drop-icon { font-size: var(--t-lead); }
+.drop.thin strong { font-size: var(--t-body); font-weight: var(--w-medium); }
+.drop.thin .muted { display: none; }
+
+/* 트랙 줄 — 주 동작 하나만 도드라지게. 예전에는 카드 폭을 다 먹었다 */
+.job-foot .primary.small.wide {
+  flex: 0 0 auto; width: auto;
+  font-size: var(--t-body); padding: 6px 12px;
+}
+
+/* 검사표에서 그 자리로 가서 듣기 */
+.finding .goto {
+  margin-left: auto; flex: 0 0 auto;
+  background: none; border: 1px solid var(--line); color: var(--accent);
+  border-radius: var(--r-1); padding: 2px 8px; font-size: var(--t-small); cursor: pointer;
+}
+.finding .goto:hover { background: var(--accent-soft); }
+
+/* 검수 창 — 파형 띠. 자막 구간이 소리 위 어디에 놓였는지 */
+.wave-strip { margin: 8px 16px 0; }
+.wave-strip canvas {
+  width: 100%; height: 56px; display: block; cursor: pointer;
+  background: var(--panel-2); border-radius: var(--r-2);
+}
+/* 재는 중 · 실패 이유. 말없이 사라지면 왜 안 보이는지 알 길이 없다 */
+.wave-note {
+  display: block; padding: 6px 10px; border-radius: var(--r-2);
+  background: var(--panel-2); border: 1px dashed var(--line);
+  font-size: var(--t-small); color: var(--faint);
+}
+
+/* 검수 창 — 거르개 */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 14px 0; }
+.chip {
+  background: none; border: 1px solid var(--line); color: var(--muted);
+  border-radius: 999px; padding: 4px 11px; font-size: var(--t-dense); cursor: pointer;
+}
+.chip:hover { color: var(--text); }
+.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* 검수 창 — 듣기 단추와 상태 */
+.edit-row .n { display: flex; align-items: center; gap: 7px; }
+.edit-row .play {
+  width: 24px; height: 24px; flex: 0 0 auto;
+  border-radius: 50%; border: 1px solid var(--line);
+  background: none; color: var(--accent);
+  font-size: var(--t-micro); line-height: 1; cursor: pointer;
+}
+.edit-row .play:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.edit-row:hover { background: var(--panel-2); }
+.edit-row.playing { background: var(--accent-soft); }
+.edit-row.playing .play { background: var(--accent); border-color: var(--accent); color: #fff; }
+.edit-row.gap { box-shadow: inset 3px 0 0 var(--warn); }
+.edit-row.broken { box-shadow: inset 3px 0 0 var(--bad); }
+/* 왜 걸러졌는지 줄 안에 적는 딱지 */
+.row-badge {
+  margin-left: 8px; font-size: var(--t-micro); font-weight: var(--w-bold);
+  padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+  vertical-align: 1px;
+}
+.row-badge.bad { background: var(--bad-soft); color: var(--bad); }
+.row-badge.warn { background: var(--warn-soft); color: var(--warn); }
+.pane-foot.quiet { background: none; border-top: 1px solid var(--line); }
+
+.group.danger h2 { color: var(--bad); }
+
+/* 액션 줄에서는 큰 단추도 제 폭만 쓴다.
+   `.big { width: 100% }` 가 남아 있어서 단추마다 한 줄을 통째로 먹었다 */
+.actionbar .primary.big,
+.actionbar .ghost { width: auto; flex: 0 0 auto; }
+.actionbar .primary.big { padding: 11px 26px; font-size: var(--t-lead); }
+
+/* 듣기 단추가 들어가면서 첫 칸이 좁아졌다. 시각과 일본어가 서로 붙어 버린다.
+   맨 끝은 줄 지우기 자리다 */
+.viewer-head,
+.edit-row { grid-template-columns: 118px minmax(0, 1fr) minmax(0, 1fr) 30px; }
+
+/* 일본어도 그 자리에서 고친다. 받아쓰기가 틀린 줄을 짚어만 주면 반쪽이다 */
+.ja-edit { outline: none; border-radius: var(--r-2); padding: 1px 4px; margin: -1px -4px; }
+.ja-edit:hover { background: var(--panel-2); }
+.ja-edit:focus { background: var(--panel-2); box-shadow: 0 0 0 1.5px var(--accent); }
+
+/* 줄 지우기 — 같은 말이 두 번 잡혔을 때 */
+.row-del {
+  background: none; border: 0; color: var(--faint); font: inherit; font-size: var(--t-dense);
+  cursor: pointer; padding: 2px 4px; border-radius: var(--r-1); justify-self: end;
+}
+.row-del:hover { color: var(--bad); background: var(--bad-soft); }
+.row-del[data-arm="1"] { color: var(--bad); background: var(--bad-soft); font-weight: var(--w-bold); }
+.edit-row { padding: 4px 0 4px 8px; border-radius: var(--r-2); }
+.edit-row .at { font-variant-numeric: tabular-nums; font-size: var(--t-dense); color: var(--muted); }
+.edit-row .ja { line-height: 1.5; padding-top: 3px; }
+
+.viewer-head { padding-left: 24px; }
+.filters { padding: 10px 16px 4px; }
+.setup li.now {
+  color: var(--text); background: var(--accent-soft); border-color: var(--accent);
+  font-weight: var(--w-bold);
+}
+.setup li.done { color: var(--ok); }
+
+/* 모델 받는 중 */
+#pull-track { margin: 4px 0 10px; }
+
+/* 강도 라디오의 걸리는 시간표 */
+#preset-list .badge { white-space: nowrap; font-variant-numeric: tabular-nums; }
+#preset-list .radio { align-items: flex-start; }
+#preset-list .why { line-height: 1.45; }
+
+/* 강도 견주기. 창구에는 있는데 화면에 단추가 없어 아무도 못 쓰던 것 */
+.compare {
+  margin-top: 10px; padding: 12px 14px; border-radius: var(--r-2);
+  background: var(--panel-2);
+}
+.compare-pick { display: flex; gap: 8px; margin: 6px 0; }
+.compare-pick select {
+  flex: 1; background: var(--bg); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r-2); padding: 5px 8px; font-size: var(--t-body);
+}
+.compare-table {
+  display: grid; grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 4px 10px; margin: 8px 0; font-size: var(--t-body);
+}
+.compare-table span { color: var(--text); }
+.compare-table span:nth-child(3n + 1) { color: var(--muted); }
+
+/* 설정 화면의 탭. 점검은 설정이 아니라 **고치는 자리**라서 칸을 나눈다 */
+.tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+.tab {
+  font: inherit; font-size: var(--t-body); padding: 7px 16px; border-radius: var(--r-2);
+  background: none; border: 1px solid transparent; color: var(--muted);
+  cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.on { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
+
+/* 점검 한 줄 — 점 · 무슨 상태인지 · 누를 것. 다른 화면과 같은 짜임이다 */
+.fix-row { display: flex; align-items: center; gap: 12px; }
+.fix-t { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.fix-t strong { font-size: var(--t-body); }
+.fix-row button { flex-shrink: 0; }
+
+/* 눌러 둔 것과 **정말 도는 것**이 다를 때. 말을 안 해 주면 설정 화면과
+   번역 화면이 서로 다른 모델을 가리켜 어느 쪽도 못 믿게 된다 */
+.pick-instead, .pick-using { display: block; margin-top: 5px; font-size: var(--t-small); }
+.pick-instead { color: var(--warn); }
+.pick-using { color: var(--ok); }
+.pick.now { border-color: var(--ok); }
+
+/* 점검 도구 목록 */
+.group.wide { grid-column: 1 / -1; }
+.ready-dot.run { background: var(--accent); }
+
+/* ── 할 일 필터 (사이드바) ── */
+.todo { display:flex; flex-direction:column; gap:2px; margin:0 2px 10px; }
+.todo-b {
+  display:flex; align-items:center; gap:9px; padding:6px 10px; border-radius:var(--r-2);
+  border:0; background:none; color:var(--muted); font:inherit; font-size: var(--t-dense);
+  text-align:left; cursor:pointer;
+}
+.todo-b:hover { background:var(--panel); }
+.todo-b.on { background:var(--accent-soft); color:var(--accent-hi); font-weight: var(--w-bold); }
+.todo-b.on:hover { background:var(--accent-soft-2); }
+.todo-b .cnt {
+  margin-left:auto; font-size: var(--t-micro); padding:1px 8px; border-radius:999px;
+  background:var(--panel-2); color:var(--muted); font-variant-numeric:tabular-nums;
+}
+.todo-b.on .cnt { background:var(--accent); color:#fff; }
+.todo-b .cnt.warn { background:var(--warn-soft); color:var(--warn); }
+
+/* ── 트랙 표 — 고르고, 명령한다 ── */
+.ttable {
+  background:var(--panel); border-radius:var(--r-3);
+  overflow:hidden; margin-bottom:6px; flex-shrink:0;
+}
+.trow {
+  /* 고정 폭 합(488)이 좁은 칸(518)을 넘으면 1fr 이 음수가 돼 「트랙」 이
+     세로로 섰다. 상태·다음 할 일은 줄어들 수 있게 한다 */
+  display:grid; grid-template-columns:32px 22px minmax(120px,1.4fr) 60px minmax(90px,1fr) minmax(110px,1fr);
+  gap:10px; align-items:center; padding:8px 12px;
+  border-bottom:1px solid var(--line); font-size: var(--t-body); cursor:default;
+  -webkit-user-select:none; user-select:none;
+}
+.trow:last-of-type { border-bottom:0; }
+.trow.thead {
+  background:var(--bg-side); font-size: var(--t-micro); color:var(--faint); padding:6px 12px;
+}
+.trow:not(.thead):hover { background:var(--panel-2); }
+.trow.sel { background:var(--accent-soft); }
+.trow.cur { box-shadow:inset 2.5px 0 0 var(--accent); }
+.cb {
+  width:16px; height:16px; border-radius:var(--r-1); cursor:pointer;
+  border:1.5px solid var(--line-strong); display:inline-block; position:relative;
+}
+.cb:hover { border-color:var(--accent-hi); background:var(--accent-soft); }
+.cb.on { background:var(--accent); border-color:var(--accent); }
+.cb.on:hover { background:var(--accent-hi); border-color:var(--accent-hi); }
+.cb.on::after { content:"✓"; color:#fff; font-size: var(--t-small); position:absolute; left:2.5px; top:-2.5px; }
+.trow .no { color:var(--faint); font-size: var(--t-dense); text-align:right; font-variant-numeric:tabular-nums; }
+/* 트랙 이름이 먼저다. 작품 이름은 뒤에 흐리게 붙고, 자리가 모자라면
+   **그쪽부터** 줄어든다 — 트랙 이름이 잘리면 어느 줄인지 알 수 없다 */
+.trow .nm { display:flex; align-items:baseline; gap:8px; min-width:0; overflow:hidden; }
+.trow .nm-t { font-weight: var(--w-medium); white-space:nowrap; flex-shrink:0;
+              overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+.trow .nm-w { color:var(--faint); font-size: var(--t-small); white-space:nowrap;
+              overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.trow .st { font-size: var(--t-small); color:var(--faint); font-variant-numeric:tabular-nums; }
+.trow .st.run { color:var(--accent-hi); }
+.trow .st.ok { color:var(--ok); }
+.trow .st.bad { color:var(--bad); }
+/* 상태가 곧 다음 행동 — 행의 주 단추 */
+.act {
+  font-size: var(--t-dense); padding:5px 12px; border-radius:var(--r-2); border:0;
+  font-family:inherit; font-weight: var(--w-bold); justify-self:start; cursor:pointer;
+  letter-spacing:inherit; white-space:nowrap;
+}
+.act.p { background:var(--accent-soft); color:var(--accent-hi); }
+.act.p:hover { background:var(--accent); color:#fff; }
+.act.g { background:var(--ok-soft); color:var(--ok); }
+.act.g:hover { background:var(--ok-soft-2); color:var(--ok); }
+.act.q { background:var(--panel-2); color:var(--muted); font-weight: var(--w-normal); }
+.act.q:hover { background:var(--line-strong); color:var(--text); }
+/* 눌리지 않는 것은 **모양이 아니라 disabled 로** 가른다. 예전에는 「말 없음」
+   (안 눌림) 과 「■ 멈추기」(눌림) 이 똑같은 .act.q 였고, 그 규칙에 붙은
+   cursor:default 때문에 눌리는 쪽까지 죽은 것처럼 보였다 */
+.act:disabled { cursor:default; opacity:.55; }
+.act:disabled:hover { background:var(--panel-2); color:var(--muted); }
+.ttable-empty { padding:18px 14px; font-size: var(--t-dense); color:var(--faint); text-align:center; }
+.tbl-hint {
+  padding:6px 12px; font-size: var(--t-micro); color:var(--faint);
+  border-top:1px solid var(--line); background:var(--bg-side);
+}
+
+/* ── 여러 개 골랐을 때의 액션 바 ── */
+.selbar {
+  position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:6px; z-index:30;
+  background:var(--panel-3); border:1px solid var(--line-strong);
+  border-radius:var(--r-3); padding:8px 10px 8px 16px;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
+}
+.selbar b { font-size: var(--t-body); margin-right:8px; white-space:nowrap; }
+.selbar .sb {
+  font:inherit; font-size: var(--t-dense); padding:7px 14px; border-radius:var(--r-2); border:0;
+  background:var(--panel-2); color:var(--text); cursor:pointer; white-space:nowrap;
+}
+.selbar .sb.p { background:var(--accent); color:#fff; font-weight: var(--w-bold); }
+.selbar .sb:disabled { opacity:.4; cursor:default; }
+.selbar .sb.x { background:none; color:var(--faint); padding:7px 9px; }
+
+/* ── 우클릭 메뉴 ── */
+.ctxmenu {
+  position:fixed; width:230px; z-index:40;
+  background:var(--panel-3); border:1px solid var(--line-strong);
+  border-radius:var(--r-3); padding:5px;
+  box-shadow:0 16px 48px rgba(0,0,0,.55);
+}
+.ctxmenu .mi {
+  display:flex; align-items:center; gap:10px; padding:7px 11px; border-radius:var(--r-1);
+  font-size: var(--t-dense); color:var(--text); cursor:pointer;
+}
+.ctxmenu .mi:hover { background:var(--panel-2); }
+.ctxmenu .mi.first { background:var(--accent); color:#fff; font-weight: var(--w-bold); }
+.ctxmenu .mi.danger { color:var(--bad); }
+.ctxmenu .mk { margin-left:auto; font-size: var(--t-micro); color:var(--faint); }
+.ctxmenu .mi.first .mk { color:rgba(255,255,255,.7); }
+.ctxmenu hr { border:0; border-top:1px solid var(--line); margin:4px 8px; }
+
+/* ── 움직임에 방향을 준다 ────────────────────────────────────
+   여태 나타나는 것은 전부 그 자리에 **툭** 생겼다. 그러면 새로 온
+   것인지, 원래 있었는데 못 봤던 것인지 알 수 없다.
+
+   규칙은 하나다 — **온 쪽에서 들어온다.**
+   화면은 아래에서 떠오르고, 다음 단계는 오른쪽에서 들어오고,
+   뒤로 가면 왼쪽에서 돌아오고, 아래에 뜨는 토스트는 아래에서 올라온다.
+   거리는 8px 안쪽이다. 크게 움직이면 멀미가 나고 기다리게 된다 */
+@keyframes 떠오르기   { from { opacity: 0; transform: translateY(8px); } }
+@keyframes 오른쪽에서 { from { opacity: 0; transform: translateX(14px); } }
+@keyframes 왼쪽에서   { from { opacity: 0; transform: translateX(-14px); } }
+@keyframes 밑에서     { from { opacity: 0; transform: translate(-50%, 14px); } }
+
+/* 화면이 바뀌었다 */
+.screen:not([hidden]) { animation: 떠오르기 var(--t-mid) var(--in); }
+/* 첫 실행의 다음 단계 — 앞으로 가면 오른쪽에서, 뒤로 가면 왼쪽에서 */
+.onb-step:not([hidden]) { animation: 오른쪽에서 var(--t-mid) var(--in); }
+#screen-onb.뒤로 .onb-step:not([hidden]) { animation-name: 왼쪽에서; }
+/* 되돌릴 수 있다는 알림은 화면 아래에서 올라온다 */
+.toast { animation: 밑에서 var(--t-mid) var(--in); }
+
+/* 클립보드 감시 줄. 켜져 있다는 것이 **늘 보여야** 한다 —
+   몰래 보는 것이 아니다 */
+.watch {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px 8px 16px; font-size: var(--t-dense); color: var(--muted);
+  background: var(--panel-2);
+}
+/* 말이 길어지면 **말이 줄어들고** 단추는 그대로 남는다. 거꾸로 하면
+   「그만 보기」 가 칸 밖으로 밀려 나가 감시를 못 끈다 */
+#watch-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+              white-space: nowrap; }
+.watch .ghost.small { margin-left: 0; flex-shrink: 0; }
+
+/* ── Undo 토스트 ── */
+.toast {
+  position:fixed; left:50%; bottom:20px; transform:translateX(-50%);
+  display:flex; align-items:center; gap:14px; z-index:50;
+  background:var(--panel-3); border:1px solid var(--line-strong);
+  border-radius:var(--r-3); padding:11px 14px 11px 18px; font-size: var(--t-dense);
+  box-shadow:0 12px 40px rgba(0,0,0,.5);
+}
+.toast .undo { color:var(--accent-hi); font-weight: var(--w-bold); background:none; border:0; font:inherit; cursor:pointer; }
+
+/* 나무의 대기 표시. 걸어 둔 것이 안 보이면 같은 트랙을 또 걸게 된다 */
+.tr-q {
+  font-size: var(--t-micro); padding: 1px 6px; border-radius: 999px; flex-shrink: 0;
+  border: 1px solid var(--line); color: var(--muted);
+}
+.tr-q.run { border-color: var(--accent); color: var(--accent); }
+
+/* 대기열에 걸어 둔 트랙의 단추. 눌러 둔 것이 눈에 띄어야 다시 눌러 뺀다 */
+.ghost.on-queue { border-color: var(--accent); color: var(--accent); }
+
+.tr-q.fin { border-color: var(--ok); color: var(--ok); }
+
+/* 낱말 칸.
+   **글상자가 남는 자리를 다 먹어야 한다.** 낱말이 스무 개만 넘어도
+   세 줄짜리 칸에서는 고칠 수가 없다 — 화면 아래는 통째로 비어 있는데. */
+#screen-settings.낱말펼침 {
+  height: calc(100vh - var(--bar-h));
+  display: flex; flex-direction: column; overflow: hidden;
+  padding-bottom: 22px;
+}
+#tab-word { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 10px; }
+#tab-word .tabs { margin-bottom: 0; }
+#word-help { margin: 0; line-height: 1.7; }
+#word-help code {
+  background: var(--accent-soft); padding: 1px 6px; border-radius: var(--r-1);
+  font: var(--t-dense)/1.6 var(--mono);
+}
+#word-text {
+  flex: 1; min-height: 180px;
+  border: 1px solid var(--line); border-radius: var(--r-2); background: var(--panel);
+  padding: 12px 14px;
+}
+#word-text:focus { border-color: var(--accent); }
+
+/* 가끔 쓰는 단추들. ⋯ 를 누르면 발치 위에 이 줄이 펼쳐진다.
+   발치에 아홉 개가 늘어서 있으면 매번 쓰는 둘(복사하기·넣기)을 매번
+   찾아야 한다. 떠 있는 메뉴가 아니라 줄이다 — pane 이 잘라 먹지 못한다 */
+.more-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 8px 12px; border-top: 1px solid var(--line);
+  background: var(--panel-2);
+}
+/* **자리가 안 바뀐다.** 「복사 형식: AI용」 ↔ 「복사 형식: 번역기용」 은
+   글자 수가 달라서, 누를 때마다 단추가 넓어지고 뒤에 있던 「이 트랙 포기」
+   가 다음 줄로 떨어졌다. 누른 것과 상관없는 자리가 움직이면 잘못 누른 줄
+   안다. 긴 쪽에 맞춰 자리를 잡아 둔다 */
+#copy-style { min-width: 142px; text-align: left; }
+#mask-style { min-width: 118px; text-align: left; }
+/* 도는 중 표시 줄. 말이 길어져도 「그만두기」 가 안 밀려난다 */
+.local-run-row { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.local-run-row > .muted { flex: 1; min-width: 0; overflow: hidden;
+                          text-overflow: ellipsis; white-space: nowrap; }
+.local-run-row > .ghost { flex-shrink: 0; }
+
+/* 빈 화면도 같은 좌/우 틀을 쓴다. 드롭존이 오른쪽 칸을 채우고 가운데를 본다 */
+.tr-main > .drop { flex: 1; margin: 0; justify-content: center; }
+
+/* 발치 한마디는 남는 자리만 쓴다. 길면 말줄임 — 단추를 다음 줄로 밀면
+   ⋯ 이 혼자 떨어져 헤맨다 */
+#local-now-note { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 이 발치는 한 줄이다. 줄바꿈되면 ⋯ 이 혼자 떨어져 헤맨다 */
+#translate-panes .pane-foot { flex-wrap: nowrap; }
+#translate-panes .pane-foot > button { white-space: nowrap; flex-shrink: 0; }
+
+/* 여러 창에 나눠 맡기기 — 트랙마다 복사해 각각 다른 세션에 넣는다 */
+/* 판(.pane) 과 **같은 색이면 통째로 사라진다.** 테두리를 걷어낸
+   대신 한 단계 밝은 면으로 얹는다 */
+.par { margin: 0 0 12px; border-radius: var(--r-3);
+       background: var(--panel-2); flex-shrink: 0; }
+.par > summary { padding: 9px 12px; cursor: pointer; font-weight: var(--w-bold); }
+.par > summary::marker { color: var(--faint); }
+/* 트랙이 열다섯이면 이 목록 하나가 화면을 다 먹고, 아래 두 칸이
+   화면 밖으로 밀려 나가 「복사하기」 가 안 보였다. 목록 안에서만 구른다 */
+#par-list { padding: 2px 12px 10px; display: flex; flex-direction: column; gap: 2px;
+            max-height: 34vh; overflow: auto; }
+.par-row { display: flex; align-items: center; gap: 10px; padding: 5px 0; }
+.par-row + .par-row { border-top: 1px solid var(--line); }
+.par-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+            white-space: nowrap; }
+.par-state { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.par-row.done .par-name { color: var(--muted); }
+
+/* ---- 첫 실행 ---- */
+/* 로지텍 결의 질감 그라데이션. **넓은 곳에만** 얹는다 — 작은 칸마다 깔면
+   지저분해지고, 여기는 화면을 통째로 쓰는 유일한 자리다 */
+.onb {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  padding: 32px;
+  background:
+    radial-gradient(120% 90% at 12% -10%, rgba(47,129,247,.16), transparent 55%),
+    radial-gradient(100% 80% at 108% 10%, rgba(47,129,247,.08), transparent 50%),
+    var(--bg);
+}
+.onb-card { width: 100%; max-width: 560px; }
+.onb-logo { font-size: var(--t-lead); color: var(--muted); margin-bottom: 28px; }
+.onb-arrow { color: var(--accent); }
+.onb-step h2 { font-size: var(--t-head); margin: 0 0 6px; letter-spacing: -.01em; }
+.onb-hint { color: var(--muted); margin: 0 0 22px; }
+.onb-picks { display: flex; flex-direction: column; gap: 10px; }
+.onb-pick {
+  text-align: left; padding: 15px 17px; border: 1px solid var(--line);
+  border-radius: var(--r-3); background: var(--panel); color: var(--text);
+  cursor: pointer; display: flex; flex-direction: column; gap: 4px;
+  transition: border-color var(--t-fast) var(--in), background var(--t-fast) var(--in), transform var(--t-fast) var(--in);
+}
+.onb-pick { position: relative; }
+/* 셋 중 무엇이 기본인지 표시가 없었다. 처음 켠 사람은 고를 근거가 없다 */
+.onb-tip {
+  position: absolute; right: 14px; top: 13px; font-style: normal;
+  font-size: var(--t-small); color: var(--accent-hi);
+  border: 1px solid var(--accent); border-radius: var(--r-1); padding: 1px 7px;
+}
+.onb-pick:hover { border-color: var(--line-strong); background: var(--panel-2); }
+.onb-pick:active { transform: scale(.995); }
+.onb-pick strong { font-size: var(--t-lead); }
+.onb-pick span { color: var(--muted); font-size: var(--t-body); }
+.onb-pick.on { border-color: var(--accent); background: var(--accent-soft); }
+.onb-multi { flex-direction: row; flex-wrap: wrap; }
+.onb-multi .onb-pick { flex: 1 1 calc(50% - 5px); }
+/* 「뒤로」 는 왼쪽, 「다음」 은 오른쪽. 읽는 방향이 곧 나아가는 방향이다 */
+.onb-go { margin-top: 22px; display: flex; align-items: center; gap: 10px; }
+.onb-go .primary { margin-left: auto; }
+/* 이 앱에서 제일 중요한 네 줄인데 제일 작고 흐린 글자였다. 본문 색·한 계단 큰 글 */
+.onb-how { color: var(--text); font-size: var(--t-lead); line-height: 1.7; padding-left: 22px; margin: 0; }
+.onb-how li + li { margin-top: 6px; }
+
+/* 화면 밖에 띄우는 오류 띠.
+ *
+ * `#notice` 는 작업 화면 안에 있어서 설정·제목 번역 화면에서는 숨은 칸이었다.
+ * 거기서 터진 것은 어디에도 안 뜨고, 사용자는 단추가 죽은 것으로 봤다. */
+.float-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 9999;
+  max-width: min(680px, 90vw);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* 판올림이 한 말을 그대로 띄우는 칸.
+ *
+ * git 이 뭐라고 했는지가 유일한 단서일 때가 있다 — 「손댄 파일이 있어서
+ * 못 받았다」 는 이 글에만 나온다. 예전에는 앱이 먼저 꺼져서 볼 데가 없었다. */
+.update-detail {
+  width: 100%;
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  max-height: 180px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: var(--t-dense);
+  line-height: 1.5;
+  border-radius: var(--r-2);
+  background: rgba(0, 0, 0, 0.25);
+}

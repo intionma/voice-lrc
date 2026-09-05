@@ -1,0 +1,24 @@
+# ASCII only. Korean Windows reads this file as cp949 and pip crashes on
+# non-ASCII bytes. Same trap as the batch files. Do not add Korean here.
+
+# Speech to text. Pulls ctranslate2 and PyAV, so no separate ffmpeg install.
+#
+# 1.1 is the floor because BatchedInferencePipeline lands there, and without it
+# transcription runs one 30-second window at a time: the GPU idles, VRAM never
+# moves off the model size, and a track takes hours. The code still detects the
+# class at runtime and falls back to the sequential path, so an older install
+# keeps working -- it is just slow.
+#
+# Upper bound pinned on purpose. VAD defaults changed between 1.0 and 1.1, and
+# every knob we care about is passed explicitly in transcribe.py, but a major
+# bump could still move something underneath us.
+faster-whisper>=1.1.0,<2
+
+# Window. Uses the Edge WebView2 that Windows already ships with.
+pywebview>=5.0
+
+# GPU compute libraries (Windows + NVIDIA)
+nvidia-cublas-cu12; sys_platform == "win32"
+nvidia-cudnn-cu12; sys_platform == "win32"
+
+# Translation providers are called with the standard library only.

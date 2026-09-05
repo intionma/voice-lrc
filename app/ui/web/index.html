@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>trans-text</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="bar" id="topbar">
+  <button class="back" id="back" hidden title="작업 화면으로" aria-label="작업 화면으로 돌아가기">←</button>
+  <!-- 앱 표식. 글자만 있으면 창이 여럿일 때 어느 것이 이 앱인지 못 찾는다.
+       **작업 표시줄 아이콘과 같은 표식**이다 (`scripts/make_icon.py` 가 셋 다
+       굽는다). 다르면 같은 앱인 줄 알 방법이 없다.
+       여기서는 파란 네모 없이 흰 표식만 쓴다 — 머리띠가 이미 제 바탕이다 -->
+  <span class="logo" aria-hidden="true"><img src="logo-mark.png" alt=""></span>
+  <!-- **앱 이름은 안 바뀐다.** 예전에는 이 자리에 화면 이름만 떠서
+       (「설정」 · 「제목 번역」), 창을 여럿 켜 두면 어느 것이 이 앱인지
+       글자로도 알 수 없었다. 이름은 고정, 지금 어느 화면인지는 그 뒤에 -->
+  <h1 id="brand">trans-text</h1>
+  <span class="bar-sep" id="bar-sep" aria-hidden="true">·</span>
+  <span class="bar-where" id="title"></span>
+
+  <!-- 단계 표시(음원→받아쓰기→번역→자막)가 여기 있었는데 뺐다.
+       작품이 여럿이면 각자 다른 단계라 「전체가 몇 단계」 는 거짓말이 된다.
+       단계는 나무의 파이프 바가 트랙마다 따로 말한다 -->
+  <span class="grow"></span>
+  <!-- 그래픽카드가 지금 어떤 상태인지. **늘 보인다.**
+       자리가 모자라면 받아쓰기가 오류도 없이 통째로 죽는데, 그것을 미리
+       알아챌 방법이 여기 말고는 없었다 -->
+  <div class="vram" id="vram" hidden title="그래픽카드 메모리">
+    <span class="vram-label">VRAM</span>
+    <span class="vram-track"><span class="vram-fill" id="vram-fill"></span></span>
+    <span class="vram-text" id="vram-text"></span>
+  </div>
+  <button class="ghost" id="to-settings">설정</button>
+</header>
+
+<!-- 작업: 파일 넣고 돌리기 -->
+<!-- **첫 실행에만 나온다.** 설정을 나열하면 아무도 안 읽는다.
+     한 화면에 질문 하나씩 묻고, 고르지 않은 길의 설정은 아예 안 보인다 -->
+<main class="screen onb" id="screen-onb" hidden>
+  <div class="onb-card">
+    <div class="onb-logo">일본어 음성 <span class="onb-arrow">→</span> 한국어 자막</div>
+
+    <section class="onb-step" id="onb-1">
+      <h2>번역은 어떻게 하실 건가요?</h2>
+      <p class="onb-hint">나중에 설정에서 바꿀 수 있습니다.</p>
+      <div class="onb-picks">
+        <button class="onb-pick" id="onb-route-chat" data-route="chat">
+          <em class="onb-tip">대부분 이걸 씁니다</em>
+          <strong>쓰는 AI에 복사해서 붙여넣기</strong>
+          <span>ChatGPT · Claude · Gemini · Grok — 쓰던 구독을 그대로 씁니다</span>
+        </button>
+        <button class="onb-pick" id="onb-route-translator" data-route="translator">
+          <strong>번역기</strong>
+          <span>DeepL · 파파고 · 구글 — 설명글 없이 번호와 원문만 보냅니다</span>
+        </button>
+        <button class="onb-pick" id="onb-route-endpoint" data-route="endpoint">
+          <strong>내 컴퓨터 AI나 API로 자동</strong>
+          <span>손이 안 갑니다. Ollama 설치나 API 키가 필요합니다</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="onb-step" id="onb-2" hidden>
+      <h2>어떤 걸 쓰세요?</h2>
+      <p class="onb-hint">여러 개 골라도 됩니다. 거절당하면 다른 데로 넘길 수 있습니다.</p>
+      <div class="onb-picks onb-multi">
+        <button class="onb-pick" id="onb-ai-chatgpt" data-ai="chatgpt"><strong>ChatGPT</strong></button>
+        <button class="onb-pick" id="onb-ai-claude" data-ai="claude"><strong>Claude</strong></button>
+        <button class="onb-pick" id="onb-ai-gemini" data-ai="gemini"><strong>Gemini</strong></button>
+        <button class="onb-pick" id="onb-ai-grok" data-ai="grok"><strong>Grok</strong></button>
+      </div>
+      <div class="onb-go">
+        <button class="ghost" id="onb-back-2">뒤로</button>
+        <button class="primary big" id="onb-next">다음</button>
+      </div>
+    </section>
+
+    <section class="onb-step" id="onb-3" hidden>
+      <h2>이렇게 쓰시면 됩니다</h2>
+      <ol class="onb-how" id="onb-how"></ol>
+      <div class="onb-go">
+        <button class="ghost" id="onb-back-3">뒤로</button>
+        <button class="primary big" id="onb-done">시작하기</button>
+      </div>
+    </section>
+  </div>
+</main>
+
+<main class="screen tall" id="screen-work" hidden>
+  <!-- 액션 줄. **자리가 안 바뀐다** — 상태 따라 단추가 생겼다 사라지면
+       화면이 계속 딴판이 되는 느낌을 준다. 받아쓰기는 전역 큐라 시작만
+       여기 있고, 번역으로 가는 길은 작품 머리와 나무에 있다 -->
+  <div class="actionbar">
+    <!-- 「전부 받아쓰기」 가 여기 좌상단에 혼자 서 있었다. 무엇을 받아쓰는
+         것인지 옆에 아무것도 없어서 「그거 왜있는거냐」 는 말을 들었다.
+         트랙이 있는 곳 — 왼쪽 나무 머리 — 로 내렸다 (규칙 2·6) -->
+    <button class="ghost" id="stop" hidden title="지금 받아쓰는 것과 기다리는 것을 전부 멈춥니다. 끝난 것은 그대로 남습니다">전부 멈추기</button>
+    <!-- 작품이 둘 이상일 때만 뜬다. 작품마다 따로 맡기지 않아도 되게 —
+         「작품까지 넘나들거야」 가 실제로 나온 말이다 -->
+    <button class="ghost" id="copy-all-works" hidden></button>
+    <span class="grow"></span>
+    <span class="tally" id="tally"></span>
+  </div>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <!-- **왼쪽 맥락 / 오른쪽 작업.** 번역 화면과 같은 규칙이다.
+       예전에는 작품 상자가 세로로 쌓이고 그 안에 트랙 카드가 격자로 깔려서,
+       작품 셋에 트랙 열다섯이면 화면을 한참 굴려야 했다 -->
+  <div class="tr-lay" id="work-lay" hidden>
+    <aside class="tr-side" id="work-side">
+      <div class="side-h">
+        <h3 id="work-side-tally"></h3>
+        <span class="grow"></span>
+        <!-- 잘못 넣었을 때 비우는 길. 늘 보이던 큰 단추에서 조용한 자리로 -->
+        <button class="ghost small quiet" id="clear">비우기</button>
+      </div>
+      <!-- **받아쓸 트랙이 있는 곳에 둔다.** 좌상단에 혼자 있을 때는 무엇을
+           받아쓰는 것인지 옆에 아무것도 없었다. 여기는 바로 아래가 작품
+           목록이라, 「이것들을 전부」 가 눈으로 이어진다.
+           지름길이라는 것은 단추 글이 말한다 (규칙 6) -->
+      <button class="ghost small" id="start">먼저 음원을 넣으세요</button>
+      <!-- 고른 것만 받아쓰는 판인지. **동작을 가르는 상태는 떠 있어야
+           한다** (규칙 5) — 이것이 안 보여서 「받아쓰는 중에 작품을 넣으면
+           멈췄다가 다시 눌러야 한다」 를 사용자가 스스로 알아내야 했다 -->
+      <div class="only-note" id="only-note" hidden></div>
+      <!-- 할 일 필터. 작품 열 개가 서로 다른 단계일 때 무엇부터 할지 —
+           「붙여넣기 대기 4」 를 누르면 모든 작품에서 그 트랙만 모아 보인다 -->
+      <div class="todo" id="todo-filters"></div>
+      <!-- 「제목 번역」 입구가 여기, 작품들과 **같은 층**에 있었다. 제목은
+           작품에 딸린 것인데 작품 밖에 서 있으니 어색하다 (규칙 6).
+           작품 머리의 단추로 옮겼다 -->
+      <div id="work-list"></div>
+      <!-- 더 넣는 길. 파일이 있으면 큰 드롭존 대신 이 띠가 남는다 -->
+      <button class="side-drop" id="pick">＋ 음원 넣기 — 끌어다 놓거나 누르기</button>
+    </aside>
+
+    <div class="tr-main">
+      <!-- 파일이 없을 때만. 빈 화면도 같은 좌/우 틀을 쓴다 — 레이아웃이
+           통째로 다르면 첫 파일을 넣는 순간 화면이 점프한다 -->
+      <!-- **앱이 아는 것을 사용자가 진단하게 만들지 않는다.** 그래픽카드를 못
+           써서 CPU 로 내려갔으면, 오류 문구를 읽고 설정을 뒤지라고 하는 대신
+           여기서 바로 고칠 수 있게 한다 -->
+      <!-- **새 판이 나왔으면 앱이 먼저 말한다.** 설정 깊은 곳에 단추를 두고
+           눌러 보라고 하면, 누르기 전에는 새 판이 있는지조차 모른다 -->
+      <div class="notice ok" id="new-ver" hidden>
+        <span id="new-ver-what"></span>
+        <button class="ghost small" id="new-ver-go">업데이트</button>
+      </div>
+
+      <!-- 판올림한 결과. **눈앞에서 보여 준다** — 예전에는 앱이 먼저 꺼져서
+           무엇이 됐는지 볼 데가 없었다 -->
+      <div class="notice" id="update-done" hidden>
+        <span id="update-done-what"></span>
+        <button class="ghost small" id="update-restart" hidden>다시 켜기</button>
+        <button class="ghost small" id="update-done-close">닫기</button>
+        <pre class="update-detail" id="update-detail" hidden></pre>
+      </div>
+
+      <div class="notice warn" id="gpu-fix" hidden>
+        <span>그래픽카드를 쓰지 못해 <b>CPU로 받아쓰는 중</b>입니다. 몇 배 느립니다.</span>
+        <button class="ghost small" id="gpu-fix-go">고치고 다시 켜기</button>
+      </div>
+
+      <div class="drop" id="drop">
+        <span class="drop-icon">📁</span>
+        <strong>음원을 여기에 끌어다 놓으세요</strong>
+        <span class="muted">mp3 · wav · m4a · flac · aac · ogg · opus · wma · 폴더째로도 됩니다</span>
+        <span class="muted small">품번(RJ…)이 있으면 DLsite 에서 제목·표지를 가져옵니다 — 설정에서 끌 수 있습니다</span>
+      </div>
+      <div class="tr-head2" id="work-head"></div>
+      <div id="work-ask"></div>
+      <!-- 트랙은 **표(줄)** 다. 고르고 → 명령한다. 아래에 고른 트랙의
+           상세 카드가 붙는다 (목록 + 상세 미리보기) -->
+      <div class="jobs" id="jobs"></div>
+
+      <!-- 자막 검수: 듣고 고치는 곳.
+           **떠 있는 창이 아니라 오른쪽 화면 하나다.** 창으로 띄우면 한 트랙을
+           보고 닫고 다음 트랙을 다시 열어야 했다. 여기 있으면 왼쪽 작품은
+           그대로 두고 앞 트랙 · 다음 트랙으로 넘기며 검수할 수 있다 -->
+      <div class="viewer-pane" id="work-edit" hidden>
+        <header class="pane-head">
+          <!-- **트랙을 넘기며 검수한다.** 창으로 띄우던 때는 한 트랙을 보고
+               닫고 목록에서 다음 것을 다시 찾아 눌러야 했다 -->
+          <button class="ghost small" id="viewer-prev" title="앞 트랙">◀</button>
+          <button class="ghost small" id="viewer-next" title="다음 트랙">▶</button>
+          <strong id="viewer-name">자막 보기·고치기</strong>
+          <span class="muted" id="viewer-count"></span>
+          <span class="grow"></span>
+          <span class="muted" id="viewer-msg"></span>
+          <!-- 「고친 것 저장」 단추는 없다. 치는 대로 담긴다 (화면 규칙).
+               단추가 있으면 고쳐 놓고 안 누른 채 ◀▶ 로 트랙을 넘기게 된다 -->
+          <button class="ghost small" id="viewer-save">일본어 파일로</button>
+          <button class="ghost small" id="viewer-close">목록으로</button>
+        </header>
+
+        <!-- 한 줄씩 고치는 길은 한두 개 손볼 때 좋다. 번역이 통째로 어색하면
+             그것이 벌이다. 번역 화면과 **같은 두 칸 형식**을 함께 둔다 -->
+        <div class="tabs" id="viewer-tabs">
+          <button type="button" class="tab on" id="viewer-tab-one">한 줄씩</button>
+          <button type="button" class="tab" id="viewer-tab-all">통째로</button>
+        </div>
+
+        <div id="viewer-one">
+        <!-- 무엇만 볼지. 142줄에서 이상한 3줄을 눈으로 찾을 수는 없다 -->
+        <div class="filters" id="viewer-filters"></div>
+
+        <!-- 파형 띠. 자막 구간이 소리 위 어디에 놓였는지 눈으로 보인다.
+             누르면 그 자리 줄로 간다. 재는 중·실패는 글로 말한다 —
+             말없이 사라지면 왜 안 보이는지 알 길이 없다 -->
+        <div class="wave-strip" id="wave-strip" hidden>
+          <canvas id="wave-canvas" height="56" hidden></canvas>
+          <span class="wave-note" id="wave-note" hidden></span>
+        </div>
+
+        <div class="viewer-head">
+          <span class="n">듣기</span><span>일본어 (눌러서 고치기)</span><span>한국어 (눌러서 고치기)</span><span></span>
+        </div>
+        <div class="pane-body" id="viewer-body"></div>
+        </div>
+
+        <!-- 통째로 ① 번역할 것이 남았을 때: 복붙 번역이 **여기서** 이루어진다.
+             예전에는 딴 화면(#work-translate)이었는데, 트랙 하나에 들어가는
+             문이 두 개라 어디로 들어갔냐에 따라 화면이 달라졌다 -->
+        <div class="tr-mode" id="viewer-tr" hidden>
+          <!-- 묶음. 트랙마다 개수가 다르다.
+               순서가 없다 — 아무거나 눌러 복사하고, 답은 아무 순서로나 넣으면 된다 -->
+          <div class="batches" id="batch-list" hidden>
+            <span class="lv">묶음</span>
+            <div class="chips" id="batch-chips"></div>
+            <span class="muted" id="batch-tally"></span>
+          </div>
+
+          <!-- 이 묶음이 자동에서 넘어온 것이면 왜인지. 거절이면 다른 AI 에
+               넣어 볼 일이고, 한도면 기다리면 되고, 서버 오류면 내용과
+               무관하다. 사유를 모르면 다 같은 벽이다 -->
+          <div id="handoff-reason" class="notice" hidden></div>
+
+          <!-- 호칭. 「お兄さん → 언니」 는 한 번 틀리면 그 작품 내내 틀린다.
+               용어집이 아니라 호칭만 받는다 — 그래야 범위가 안 늘어난다 -->
+          <div class="batches" id="names-row" hidden>
+            <span class="lv">호칭</span>
+            <input type="text" id="names-text"
+                   placeholder="お兄さん = 오빠 · お姉ちゃん = 누나"
+                   title="여러 개는 세미콜론(;)으로 잇습니다. 이 작품에서만 이렇게 옮깁니다">
+            <!-- 담기 단추는 없다. 치는 대로 담긴다 (화면 규칙) -->
+            <span class="muted" id="names-msg"></span>
+          </div>
+
+          <!-- **병렬로 뿌리는 자리.** 창을 여럿 열어 트랙을 하나씩 맡길 때,
+               트랙마다 복사해 각각 다른 세션에 넣는다. 답은 번호만 보고
+               제자리로 가므로 넣는 차례는 아무래도 된다 -->
+          <details class="par" id="par-box">
+            <summary>여러 창에 나눠 맡기기 <span class="muted" id="par-sum"></span></summary>
+            <div id="par-list"></div>
+          </details>
+
+          <div class="two" id="translate-panes">
+            <section class="pane">
+              <header class="pane-head">
+                <strong id="send-what">보낼 내용</strong>
+                <span class="muted" id="send-count"></span>
+              </header>
+              <div class="pane-body" id="preview"></div>
+              <!-- 가끔 쓰는 단추들. ⋯ 를 누르면 이 줄이 펼쳐진다. 떠 있는
+                   메뉴로 하면 pane 이 밖으로 나간 것을 잘라서 못 쓴다 -->
+              <div class="more-row" id="tr-more-menu" hidden>
+                <button class="ghost small" id="copy-style" title="어디에 넣을 것인지">복사 형식: AI용</button>
+                <button class="ghost small" id="mask-style">대체 단어: 켬</button>
+                <button class="ghost small" id="copy-all">남은 것 전부 파일로</button>
+                <button class="ghost small" id="skip">이 트랙은 나중에</button>
+                <button class="ghost small" id="giveup">이 트랙 포기</button>
+              </div>
+              <footer class="pane-foot">
+                <!-- 매번 쓰는 것만 크게. 나머지는 ⋯ 뒤에 있다 — 단추가 아홉
+                     개 늘어서 있으면 매번 쓰는 둘을 매번 찾아야 한다 -->
+                <button class="primary big" id="copy">복사하기</button>
+                <button class="ghost" id="save-file" hidden>파일로</button>
+                <span class="grow"></span>
+                <span class="muted" id="local-now-note"></span>
+                <!-- 거절당했을 때의 비상구. 브라우저에서 거절당하는 것은 이
+                     프로그램이 볼 수 없어서, 단추를 보이게 두고 사용자가 누른다 -->
+                <button class="go" id="local-now">내 컴퓨터 AI로 번역</button>
+                <button class="ghost small" id="tr-more" title="가끔 쓰는 것들">⋯</button>
+              </footer>
+              <!-- 검수. 한 번 번역한 것을 원문과 나란히 다시 보여 주고 **고칠 줄만**
+                   받는다. 전부 다시 쓰게 하면 멀쩡하던 줄까지 흔들린다 -->
+              <footer class="pane-foot quiet" id="review-row" hidden>
+                <span class="hint">한 번 더 보게 하면 호칭·뜻이 틀린 줄이 잡힙니다.</span>
+                <span class="grow"></span>
+                <button class="ghost small" id="review-copy">검수 프롬프트 복사</button>
+                <button class="ghost small" id="review-local">내 컴퓨터 AI로 검수</button>
+                <span class="muted" id="review-msg"></span>
+              </footer>
+              <!-- 번역이 도는 동안 무엇이 어디까지 왔는지. 1~3분이 걸리는데 아무
+                   표시가 없으면 멈춘 줄 알고 창을 껐다 켠다 — 껐다 켜면 처음부터다 -->
+              <div class="local-run" id="local-run" hidden>
+                <div class="track"><div class="fill" id="local-fill"></div></div>
+                <div class="local-run-row">
+                  <span class="muted" id="local-run-note"></span>
+                  <!-- **실수로 눌러도 무를 수 있어야 한다.** 몇 분씩 걸리는데
+                       취소가 없으면 창을 껐다 켜게 된다 — 껐다 켜면 처음부터다 -->
+                  <button class="ghost small" id="local-cancel">그만두기</button>
+                </div>
+              </div>
+            </section>
+
+            <section class="pane">
+              <header class="pane-head">
+                <strong>답 붙여넣기</strong>
+                <span class="muted">몇 번 것인지 안 골라도 됩니다</span>
+              </header>
+              <!-- **클립보드 감시.** 「복사」 를 누른 뒤부터 켜진다.
+                   켜져 있다는 것이 늘 보여야 한다 — 몰래 보는 것이 아니다 -->
+              <div class="watch" id="watch-row" hidden>
+                <span class="ready-dot" id="watch-dot"></span>
+                <span id="watch-text"></span>
+                <!-- 「되돌리기」 만 있으면 무엇을 되돌리는지 모른다. 감시가 넣은 것이다 -->
+                <button class="ghost small" id="watch-undo" hidden title="감시가 방금 넣은 답을 빼냅니다">넣은 것 되돌리기</button>
+                <button class="ghost small quiet" id="watch-off" title="클립보드를 더 안 봅니다. 답은 손으로 붙여넣으세요">그만 보기</button>
+              </div>
+              <textarea class="pane-body" id="paste"
+                        placeholder="AI 답을 통째로 붙여넣으세요. 몇 번 묶음인지는 줄 번호로 알아서 찾습니다.&#10;순서가 바뀌어도 됩니다.&#10;Ctrl+Enter 로 바로 넣습니다."></textarea>
+              <footer class="pane-foot">
+                <button class="primary big" id="submit">넣기</button>
+                <!-- 검수 답은 고칠 줄만 온다. 그것을 「넣기」로 넣으면 나머지가
+                     빠진 줄로 잡혀서 멀쩡한 줄을 계속 다시 물어보게 된다 -->
+                <button class="ghost" id="submit-review" hidden>검수 답 넣기</button>
+              </footer>
+            </section>
+          </div>
+
+          <!-- 번역이 다 끝났을 때. **쫓아내지 않는다** — 나무는 할 일 목록이
+               아니라 관리하는 곳이라, 다 끝난 뒤가 오히려 들어오고 싶은 때다 -->
+          <div class="notice ok" id="all-done" hidden>
+            번역할 것이 없습니다. 모두 끝났습니다.<br>
+            왼쪽에서 트랙을 눌러 <b>듣고 고치기</b>, 위 나무에서 <b>제목 번역</b>을
+            할 수 있습니다.
+          </div>
+        </div>
+
+        <!-- 통째로 ② 번역이 끝난 트랙: 왼쪽 원문, 오른쪽에 **이미 채워진** 번역 -->
+        <div class="two" id="viewer-all" hidden>
+          <section class="pane">
+            <header class="pane-head">
+              <strong>원문</strong>
+              <span class="muted" id="viewer-all-count"></span>
+            </header>
+            <div class="pane-body" id="viewer-all-ja"></div>
+            <footer class="pane-foot">
+              <button class="primary big" id="viewer-all-copy">원문 복사하기</button>
+              <span class="muted">번역기·AI 에 넣고 답을 오른쪽에 붙여넣으세요</span>
+            </footer>
+          </section>
+          <section class="pane">
+            <header class="pane-head">
+              <strong>번역 (고칠 수 있음)</strong>
+              <span class="muted">지금 번역이 이미 들어 있습니다</span>
+            </header>
+            <textarea class="pane-body" id="viewer-all-ko"></textarea>
+            <footer class="pane-foot">
+              <button class="primary big" id="viewer-all-submit">넣기</button>
+              <button class="ghost" id="viewer-all-reset">되돌리기</button>
+              <span class="muted" id="viewer-all-msg"></span>
+            </footer>
+          </section>
+        </div>
+
+        <footer class="pane-foot quiet" id="viewer-play-foot">
+          <span class="hint">
+            ▶ 를 누르면 <b>그 줄만</b> 들립니다. 자막이 맞는지 눈으로는 알 수 없습니다.
+          </span>
+          <span class="grow"></span>
+          <span class="hint" id="play-state"></span>
+          <button class="ghost small" id="play-stop" hidden>■ 멈춤</button>
+        </footer>
+        <!-- 소리가 짧게 끊길 때 어디가 짧은지 가리는 자리. 앱이 짧게 보낸 것인지,
+             보낸 것은 긴데 브라우저가 중간에 끊은 것인지 눈으로 갈린다 -->
+        <footer class="pane-foot quiet" id="play-measure-row" hidden>
+          <span class="hint" id="play-measure"></span>
+        </footer>
+        <!-- 넣기·복사·내보내기의 결과가 여기 적힌다. 탭과 무관하게 보인다 -->
+        <div id="submit-msg" class="notice" hidden></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 여러 개 골랐을 때 뜨는 액션 바. 고르고 → 명령한다 -->
+  <div class="selbar" id="selbar" hidden></div>
+  <!-- 우클릭 메뉴. 첫 항목이 그 트랙의 기본 행동이다 -->
+  <div class="ctxmenu" id="ctxmenu" hidden></div>
+  <!-- 빼기는 묻지 않고 실행하고, 8초 안에 되돌린다. 확인창은 읽히지 않는다 -->
+  <div class="toast" id="undo-toast" hidden></div>
+</main>
+
+<!-- 제목 번역. 자막과 **같은 두 칸 형식**이라 새로 익힐 것이 없다 -->
+<main class="screen tall" id="screen-titles" hidden>
+  <div class="tr-head2">
+    <!-- 「← 돌아가기」 가 여기 있었다. 머리띠의 ← 와 같은 일이라 뒤로가 둘이었다 -->
+    <h2 id="titles-h">제목 번역</h2>
+    <span class="muted" id="titles-sub"></span>
+    <span class="grow"></span>
+    <!-- 기본은 **들어온 그 작품 것**이다. 여러 작품을 한 번에 하는 것은
+         지름길이라 그렇다고 적어 둔다 (규칙 6) -->
+    <button class="ghost small" id="titles-all">모든 작품 한 번에</button>
+  </div>
+
+  <div class="two">
+    <section class="pane">
+      <header class="pane-head">
+        <strong>보낼 내용</strong>
+        <span class="muted" id="titles-count"></span>
+      </header>
+      <div class="pane-body" id="titles-preview"></div>
+      <footer class="pane-foot">
+        <button class="primary big" id="titles-copy">복사하기</button>
+        <span class="muted">넣어 둔 작품 제목이 한꺼번에 나갑니다</span>
+      </footer>
+    </section>
+
+    <section class="pane">
+      <header class="pane-head">
+        <strong>답 붙여넣기</strong>
+        <span class="muted">어느 작품 것인지 안 골라도 됩니다</span>
+      </header>
+      <textarea class="pane-body" id="titles-paste"
+                placeholder="AI 답을 통째로 붙여넣으세요.&#10;9000번대 번호를 보고 작품을 알아서 찾습니다."></textarea>
+      <footer class="pane-foot">
+        <button class="primary big" id="titles-submit">넣기</button>
+        <span class="muted" id="titles-msg"></span>
+      </footer>
+    </section>
+  </div>
+
+  <!-- 작품마다 두 가지를 따로 들고 있다. 번역은 했는데 이름은 아직 안 바꾼
+       것이 정상이고 오히려 기본이라, 둘 다 보여야 한다 -->
+  <div id="titles-list"></div>
+  <div id="titles-notice" class="notice" hidden></div>
+</main>
+
+<!-- 설정 -->
+<main class="screen" id="screen-settings" hidden>
+  <!-- 「점검」 탭이 있었다. `scripts/` 의 도구 열 개를 눌러 보는 자리였는데,
+       **사용자가 시험을 돌릴 까닭이 없다.** 게다가 절반은 앱이 이미 다른
+       자리에서 하는 일이었다 — 그래픽카드 상태는 화면 맨 위 VRAM 막대가,
+       자막 검사는 검수 창의 ⚠ 가 말한다.
+       판올림과 그래픽카드 고치기는 진짜 기능이라 설정 안으로 내렸다 -->
+  <div class="tabs" id="set-tabs">
+    <button type="button" class="tab on" id="tab-btn-set">설정</button>
+    <button type="button" class="tab" id="tab-btn-word">낱말</button>
+  </div>
+
+  <div id="tab-set">
+    <!-- **판과 문제 알리기가 맨 위에 있다.** 설정 맨 아래에 있어서, 뭔가 안 돼서 여기
+         온 사람이 스크롤을 네 번 해야 닿았다. 몇 판인지도 첫눈에 안 보였다.
+         자주 바꾸는 것(강도·번역)이 한 칸 내려가는 대가를 치른다 -->
+    <!-- 점검 탭에 있던 것. **진짜 기능이라 남긴다** -->
+    <section class="group">
+      <h2>지금 판</h2>
+      <div class="fix-row">
+        <span class="ready-dot" id="ver-dot"></span>
+        <div class="fix-t">
+          <strong id="ver-now">알아보는 중…</strong>
+          <span class="hint" id="ver-note">
+            눌러서 최신으로 받습니다. <b>받은 결과를 보여 준 뒤</b>,
+            다시 켤지 물어봅니다.
+          </span>
+        </div>
+        <button class="primary" id="do-update">업데이트</button>
+      </div>
+      <p class="hint" id="update-why" hidden></p>
+    </section>
+
+    <!-- **파일로 주면 안 된다.** 예전에는 `진단.txt` 를 만들어 놓고 사용자가
+         그 폴더를 찾아 들어가 첨부해야 했다. 「이상하다」 고 말하려던 사람이
+         거기서 그만둔다. 한 번 눌러 복사하고 그대로 붙여넣게 한다 -->
+    <section class="group">
+      <h2>문제가 생겼을 때</h2>
+      <p class="hint">
+        무슨 일이 있었는지 한 번에 복사합니다. 채팅이나 이슈에 그대로
+        붙여넣으시면 됩니다. <b>API 키는 들어가지 않습니다.</b>
+      </p>
+      <button class="primary" id="report">문제 알리기 — 복사</button>
+    </section>
+
+    <section class="group">
+      <h2>받아쓰기 강도</h2>
+      <p class="hint">
+        말이 자꾸 빠지면 <b>강도를 올리세요.</b> 느려지는 대신 훨씬 많이 잡습니다.
+      </p>
+      <div id="preset-list" class="radios"></div>
+      <label class="check">
+        <input type="checkbox" id="asr-device">
+        <span>그래픽카드 없이 처리 — 20분 음원에 30분~1시간쯤 걸립니다</span>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="asr-nonverbal">
+        <span>숨소리·신음도 받아적기</span>
+      </label>
+    </section>
+
+    <section class="group">
+      <h2>번역을 어떻게 할까요</h2>
+
+      <!-- **길 셋.** 고르면 아래 손잡이 넷이 그 길에 맞게 놓인다.
+           예전에는 보내는 곳 여섯 개가 한 줄로 늘어서 있었는데, 그 여섯은
+           고르는 사람에게 같은 종류가 아니다 — 「직접 복붙」과 「Gemini」는
+           손이 얼마나 가는가가 다르고, 「Ollama」와 「Gemini」는 어디서
+           도는가만 다르다 -->
+      <div id="route-list" class="radios"></div>
+
+      <!-- **손잡이 넷.** 길이 정한 값이 들어 있다. 건드린 것만 기억한다 -->
+      <details class="deep" id="route-knobs">
+        <summary>자세히 — 지시문 · 가리기 · 묶음</summary>
+        <label class="check" id="knob-brief-row">
+          <input type="checkbox" id="knob-brief">
+          <span>번역 지시문 붙이기</span>
+        </label>
+        <label class="check" id="knob-mask-row">
+          <input type="checkbox" id="knob-mask">
+          <span>민감한 낱말을 표로 가려서 보내기 (거절을 줄입니다)</span>
+        </label>
+        <label class="field">
+          <span>한 번에 보낼 줄 수</span>
+          <input type="number" id="knob-batch" min="20" max="600" step="10">
+        </label>
+        <p class="hint" id="knob-locked" hidden></p>
+      </details>
+
+      <!-- 「자동」 길에서만 뜬다. 어느 주소로 보낼지 -->
+      <div id="send-where" hidden>
+        <p class="hint">어디로 보낼까요</p>
+        <div id="provider-list" class="radios"></div>
+      </div>
+      <label class="field" id="key-field" hidden>
+        <span>API 키</span>
+        <input type="password" id="api-key" placeholder="받아 둔 키를 붙여넣으세요">
+        <a class="hint link" id="key-link" target="_blank">키 받으러 가기 →</a>
+      </label>
+      <p class="hint" id="local-always">
+        어느 것을 고르든 <b>「내 컴퓨터 AI」는 늘 쓸 수 있습니다.</b>
+        밖의 AI 가 거절하면 번역 화면에서 바로 넘겨받으세요. 아래 칸에서 설정합니다.
+      </p>
+      <p class="hint warn-box" id="lmstudio-note" hidden>
+        <b>LM Studio 는 문맥 창을 저희가 못 정합니다.</b>
+        한 번에 5,000자 넘게 보내므로 LM Studio 쪽에서
+        <b>Context Length 를 16384</b> 정도로 올려 두세요.
+        모자라면 앞부분이 잘려서 번역이 통째로 어긋납니다.
+      </p>
+
+    </section>
+
+    <!-- **늘 보인다.** 위에서 「직접 복붙」을 골라도 번역 화면에는 「내 컴퓨터
+         AI로 번역」 단추가 있다. 그런데 어느 모델을 쓸지 고르는 칸이 숨어
+         있어서, 눌러 놓고 무엇이 돌아가는지 알 수가 없었다 -->
+    <section class="group" id="local-field">
+      <h2>내 컴퓨터 AI</h2>
+      <p class="hint">
+        밖의 AI 가 야한 내용을 거절할 때 씁니다. 인터넷도 키도 필요 없습니다.
+        받아쓰기와 <b>같은 그래픽카드를 쓰므로</b> 번역하는 동안에는 받아쓰기
+        모델을 잠시 내립니다.
+      </p>
+
+      <!-- 지금 어디까지 됐는지. 이것만 보고 무엇을 누를지 알 수 있어야 한다 -->
+      <div class="ready" id="local-ready">
+        <span class="ready-dot" id="local-dot"></span>
+        <span id="local-ready-text">확인하는 중…</span>
+        <button class="primary small" id="local-do">확인</button>
+      </div>
+      <div class="track" id="pull-track" hidden><div class="fill" id="pull-fill"></div></div>
+      <span class="hint" id="local-msg"></span>
+
+      <!-- 모델은 **이름 말고 성격으로** 고른다. 이름은 아래 작은 글씨로만 -->
+      <div id="local-have" hidden>
+        <span class="hint">받아 둔 것 — 눌러서 고르세요</span>
+        <div class="picks" id="local-have-list"></div>
+      </div>
+      <p class="hint warn-box" id="fit-note" hidden></p>
+
+      <!-- 아직 안 받은 것. 「이런 것도 있습니다」 -->
+      <div id="local-more" hidden>
+        <span class="hint">더 받아 볼 만한 것</span>
+        <div class="picks" id="local-more-list"></div>
+      </div>
+
+      <details class="deep">
+        <summary>직접 정하기</summary>
+        <label class="field">
+          <span>모델 이름</span>
+          <input type="text" id="local-model" placeholder="qwen2.5:7b">
+          <span class="hint" id="local-hint"></span>
+        </label>
+        <label class="field">
+          <span>주소</span>
+          <input type="text" id="local-url" placeholder="http://localhost:11434/v1/chat/completions">
+        </label>
+        <div class="row">
+          <button class="ghost small" id="test-provider">연결 확인</button>
+          <span class="hint" id="test-result"></span>
+        </div>
+      </details>
+    </section>
+
+    <section class="group">
+      <h2>자막</h2>
+      <label class="field">
+        <span>몇 초 쉬면 자막을 지울까요</span>
+        <input type="number" id="out-gap" step="0.1" min="0.3">
+      </label>
+    </section>
+
+    <!-- **인터넷에 나가는 것은 이것 하나다.** 어디에도 안 적혀 있었고 끌 수도
+         없었다. 「내 파일 어디로 보내?」 하는 사람이 여기서 읽고, 원하면 끈다 -->
+    <section class="group">
+      <h2>작품 정보</h2>
+      <label class="check">
+        <input type="checkbox" id="lookup-online">
+        <span>파일 이름의 품번(RJ…)으로 DLsite 에서 제목·표지를 가져옵니다.
+          인터넷에 나가는 것은 <b>품번 하나</b>이고, 음원이나 자막은 나가지 않습니다</span>
+      </label>
+    </section>
+
+
+    <section class="group">
+      <h2>그래픽카드</h2>
+      <div class="fix-row">
+        <span class="ready-dot" id="fix-gpu-dot"></span>
+        <div class="fix-t">
+          <strong id="fix-gpu-now">알아보는 중…</strong>
+          <!-- **오류 문구를 사용자에게 읽히지 않는다.** 앱은 그래픽카드를 못
+               썼다는 것을 이미 알고, 그때 작업 화면에서 바로 고칠 길을
+               내민다(`#gpu-fix`). 여기는 미리 손보고 싶을 때 오는 자리다 -->
+          <span class="hint">
+            받아쓰기가 그래픽카드를 못 쓰고 CPU 로 내려갈 때 이것을 누르면
+            고쳐집니다. <b>앱이 한 번 꺼졌다가 다시 켜집니다.</b>
+          </span>
+        </div>
+        <button class="ghost" id="do-fix-gpu">고치고 다시 켜기</button>
+      </div>
+      <p class="hint" id="fix-gpu-why" hidden></p>
+    </section>
+
+    <section class="group danger">
+      <h2>초기화</h2>
+      <p class="hint">
+        받아쓴 결과를 담아 두기 때문에 같은 파일을 다시 넣으면 건너뜁니다.
+        예전 것을 이어서 하는 것처럼 보이면 여기서 지우세요.
+      </p>
+      <label class="check">
+        <input type="checkbox" id="reset-keys">
+        <span>설정과 API 키까지 지우기</span>
+      </label>
+      <button class="ghost" id="reset">완전 초기화</button>
+    </section>
+  </div>
+
+  <!-- 점검. 배치 파일 대신 여기서 누른다.
+       업데이트와 그래픽카드 고치기는 **지금 돌고 있는 파일을 건드리므로**
+       앱이 스스로 못 한다. 눌러 놓고 아무 일도 안 일어나면 안 되니까
+       무엇이 일어날지 단추 옆에 그대로 적어 둔다 -->
+  <!-- 낱말. **두 목록이 모양이 같아서 칸 하나로 쓴다.**
+       하나는 「내 낱말」(내가 정한 대로 옮긴다), 하나는 「위험낱말」(미성년
+       설정을 짚는다). 따로 만들면 두 번 만들고 두 번 고치게 된다. -->
+  <div id="tab-word" hidden>
+    <div class="tabs" id="word-kinds">
+      <button type="button" class="tab on" id="word-kind-mine">내 낱말</button>
+      <button type="button" class="tab" id="word-kind-risk">위험낱말</button>
+    </div>
+
+    <p class="hint" id="word-help"></p>
+
+    <textarea class="pane-body" id="word-text" spellcheck="false"
+              placeholder="한 줄에 하나씩"></textarea>
+
+    <div class="row">
+      <!-- 저장 단추는 없다. 치는 대로 담긴다 (화면 규칙: 바꾸면 바로 저장).
+           단추가 있으면 「저장 안 한 상태」 가 생기고, 그것을 막으려고
+           팝업이 붙는다 — 실제로 그렇게 됐었다 -->
+      <button type="button" class="ghost" id="word-reset">기본으로 되돌리기</button>
+      <span class="hint" id="word-said">바꾸면 바로 저장됩니다</span>
+    </div>
+  </div>
+
+  <div class="actions">
+    <span class="hint saved-note" id="saved-note">바꾸면 바로 저장됩니다</span>
+    <!-- 「닫기」 가 파란 주 단추였다. 닫는 것은 주 행동이 아니고, 저장은 치는 대로 된다 -->
+    <button class="ghost" id="save">닫기</button>
+  </div>
+</main>
+
+<script src="app.js"></script>
+</body>
+</html>

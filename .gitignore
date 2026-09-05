@@ -1,0 +1,100 @@
+# Local media and source materials
+works/
+media/
+audio/
+input/
+output/
+
+# Common audio formats
+*.mp3
+*.m4a
+*.wav
+*.flac
+*.aac
+*.ogg
+*.opus
+*.wma
+
+# Derived text and subtitle outputs
+*.srt
+*.vtt
+*.ass
+*.lrc
+*.cue
+*.transcript.json
+*.translation.json
+
+# Product images and local references
+*.jpg
+*.jpeg
+*.png
+# README 스크린샷은 예외 — 저장소에 담아야 화면에 보인다
+!docs/img/*.png
+*.webp
+*.gif
+*.bmp
+*.tif
+
+# **앱이 쓰는 그림은 예외.** 위 규칙은 참고용 이미지를 안 담으려는 것인데,
+# 앱 화면이 실제로 띄우는 로고까지 같이 막았다. 커밋이 안 되니 받아 간
+# 사람에게는 그 파일이 없고, 좌상단 로고가 깨진 그림으로 뜬다
+!app/ui/web/*.png
+*.tiff
+
+# Databases, caches, models and logs
+*.sqlite
+*.sqlite3
+*.db
+.cache/
+models/
+logs/
+tmp/
+temp/
+
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+config.local.yaml
+secrets.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+dist/
+build/
+*.egg-info/
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Generated subtitles
+subtitles/
+
+# Android
+android/local.properties
+android/.gradle/
+android/build/
+android/app/build/
+*.apk
+*.aab
+
+# Android release signing
+android/keystore.properties
+*.jks
+*.keystore
+
+# 앱이 그때그때 만드는 것들. 껐다 켜기 · 켤 때 나온 말 · 터진 자국
+/_relaunch.bat
+/_relaunch.log
+/_start.log
+/_crash.log

@@ -137,7 +137,10 @@ def 정해진값(settings: dict[str, Any]) -> dict[str, Any]:
         낸것 = 고친것[이름]
         if 이름 == "묶음":
             try:
-                낸것 = max(20, min(exchange.LOCAL_BATCH_LINES, int(낸것)))
+                # 상한은 **보내는 폭**이지 내 컴퓨터 모델의 창이 아니다. 예전에는
+                # `LOCAL_BATCH_LINES` 를 썼는데, 그 값은 모델 문맥 창에 맞춘
+                # 것이라 복붙 길의 상한으로 쓸 까닭이 없었다
+                낸것 = max(20, min(exchange.묶음최대, int(낸것)))
             except (TypeError, ValueError):
                 continue
         elif 이름 == "보내는길":

@@ -565,12 +565,20 @@ class Controller:
         남은것 = [g for g in 묶음들목록 if not g.done]
         남은번호 = {id(g): 번호 for 번호, g in enumerate(남은것)}
         일자리 = {id(j): 번호 for 번호, j in enumerate(self.jobs)}
+        # **「묶어서 복사」 단추가 몇 트랙이 실제로 담기는지 말하려면** 트랙마다
+        # 다음에 보낼 줄 수를 알아야 한다. 여태 안 줘서, 단추는 고른 수를
+        # 그대로 적고(「5트랙」) 창구는 한도에 걸려 둘만 담았다
+        다음줄수: dict[int, int] = {}
+        묶음열쇠: dict[int, str] = {}
         for g in 묶음들목록:
             점들 = [bool(b["done"]) for b in (g.session.batches_view() if g.session else [])]
+            다음것 = g.session.pending_batch() if (g.session and not g.done) else None
             for j in g.jobs:
                 자리 = 일자리.get(id(j))
                 if 자리 is not None:
                     묶음자리[자리] = 점들
+                    다음줄수[자리] = len(다음것.indices) if 다음것 is not None else 0
+                    묶음열쇠[자리] = g.key
                     대기자리[자리] = 남은번호.get(id(g), -1)
                     걸린것[자리] = {
                         "queued": self._대기자리(g),
@@ -594,6 +602,10 @@ class Controller:
                 **job.to_view(), "index": index,
                 # 점 하나가 묶음 하나. 번역 화면 나무와 **같은 부품**이다
                 "dots": 묶음자리.get(index, []),
+                # 다음에 보낼 줄 수와 그 묶음의 열쇠. 화면이 「몇 트랙이
+                # 실제로 담기나」 를 세는 데 쓴다(`묶이는수`)
+                "next_lines": 다음줄수.get(index, 0),
+                "group_key": 묶음열쇠.get(index, ""),
                 # 번역 대기열 자리. 왼쪽에서 누르면 여기로 `go_to` 한다
                 "at": 대기자리.get(index, -1),
                 # 번역해 뒀으면 한국어 제목. **긴 일본어 파일 이름을 눈으로
@@ -754,6 +766,11 @@ class Controller:
             # 질문 하나씩 묻고, 물은 것은 다시 묻지 않는다
             "처음켬": not bool(self.settings.get("onboarded")),
             "settings": settings_store.for_display(self.settings),
+            # 한 번에 보낼 줄 수. 화면이 이 값으로 「몇 트랙이 담기나」 를 센다
+            "묶음한도": int(routes.정해진값(self.settings)["묶음"]),
+            # 번역할 것 **전부**를 골랐을 때 실제로 담기는 트랙 수. 화면도 같은
+            # 셈을 하는데(`묶이는수`), 그 둘이 어긋나지 않는지 하네스가 잰다
+            "묶을수있는수": self._묶이는수([i for i, _ in enumerate(self.jobs)]),
             # 받아쓰기 강도 목록. 화면이 라디오로 그린다
             "presets": presets.to_view(),
             # **번역을 어디로 보내는가 — 길 셋과 손잡이 넷.**
@@ -1056,9 +1073,11 @@ class Controller:
         """
         값 = routes.정해진값(self.settings)
         줄 = int(값["묶음"])
-        # 글자 한도는 줄 수에 맞춰 따라간다. 줄만 늘려 놓고 글자를 그대로
-        # 두면 글자에서 먼저 잘려 늘린 뜻이 없다
-        글자 = exchange.LOCAL_BATCH_CHARS if 줄 > exchange.BATCH_LINES else exchange.BATCH_CHARS
+        # **글자 한도는 길이 정한다.** 예전에는 「줄 수가 복붙 기본보다 크냐」 로
+        # 골랐는데, 복붙 기본을 600 으로 올려 로컬과 같아지자 로컬이 조용히
+        # 작은 글자 한도로 떨어졌다. 숫자끼리 견주면 그 숫자가 움직일 때 깨진다
+        사람손이안감 = 값["보내는길"] != "manual"
+        글자 = exchange.LOCAL_BATCH_CHARS if 사람손이안감 else exchange.BATCH_CHARS
         return {"batch_lines": 줄, "batch_chars": 글자, "가리기": bool(값["가리기"])}
 
     def _rebuild_queue(self) -> None:
@@ -2222,6 +2241,37 @@ class Controller:
                 return g, batch
         return None
 
+    def _묶을것고르기(self, indices: list[int]) -> tuple[list, list[str]]:
+        """한도 안에 드는 묶음만 고른다. (담은 묶음, 못 담은 이름)
+
+        **`prompt_many` 와 화면이 같은 셈을 해야 한다.** 화면이 「5트랙」 이라
+        말하고 창구가 둘만 담으면 그것은 거짓말이다. 셈이 여기 한 곳에 있고,
+        화면은 `묶이는수` 로 같은 규칙을 따라 센다.
+        """
+        한도 = int(routes.정해진값(self.settings)["묶음"])
+        # 먼저 후보를 줄 세운다. 한 트랙을 두 번 담지 않는다
+        후보: list = []
+        for 자리 in [int(i) for i in (indices or [])]:
+            찾음 = self._트랙의묶음(자리)
+            if 찾음 is None:
+                continue
+            g, batch = 찾음
+            if any(g is 든것 for 든것, _ in 후보):
+                continue
+            후보.append((g, len(batch.indices)))
+
+        # **고르는 규칙은 `exchange.묶이는자리` 하나뿐이다.** 화면도 같은 것을
+        # 따른다 — 여기서 한 벌 더 쓰면 둘이 어긋나 단추가 거짓말을 한다
+        든자리 = set(exchange.묶이는자리([줄 for _, 줄 in 후보], 한도))
+        담은묶음 = [g for i, (g, _) in enumerate(후보) if i in 든자리]
+        못담은것 = [g.title for i, (g, _) in enumerate(후보) if i not in 든자리]
+        return 담은묶음, 못담은것
+
+    def _묶이는수(self, indices: list[int]) -> int:
+        """이만큼 고르면 몇 트랙이 실제로 담기나. 화면 단추가 쓴다."""
+        담은것, _ = self._묶을것고르기(indices)
+        return len(담은것)
+
     def prompt_many(self, indices: list[int]) -> dict[str, Any]:
         """고른 트랙들의 다음 묶음을 **하나로 합쳐서** 준다.
 
@@ -2229,33 +2279,21 @@ class Controller:
         않고 통째로 담는다 — 반쪽만 보내면 나머지 반쪽을 또 따로 물어야 해서
         오가는 횟수가 도로 늘어난다.
         """
-        고른 = [int(i) for i in (indices or [])]
-        한도 = int(routes.정해진값(self.settings)["묶음"])
+        담은묶음, 못담은것 = self._묶을것고르기(indices)
 
         낱장들: list[exchange.낱장] = []
-        담은묶음: list[Group] = []
-        못담은것: list[str] = []
         줄수 = 0
-        for 자리 in 고른:
-            찾음 = self._트랙의묶음(자리)
-            if 찾음 is None:
+        for g in 담은묶음:
+            batch = g.session.pending_batch() if g.session else None
+            if batch is None:
                 continue
-            g, batch = 찾음
-            if any(g is 든것 for 든것 in 담은묶음):
-                continue          # 한 트랙을 두 번 담지 않는다
-            길이 = len(batch.indices)
-            if 낱장들 and 줄수 + 길이 > 한도:
-                못담은것.append(g.title)
-                continue
-            job = g.jobs[0] if g.jobs else None
             낱장들.append(exchange.낱장(
                 묶음=batch,
                 트랙이름=g.track_name or g.title,
                 작품이름=self._작품이름(g.work_key),
                 작품열쇠=g.work_key or "",
             ))
-            담은묶음.append(g)
-            줄수 += 길이
+            줄수 += len(batch.indices)
 
         if not 낱장들:
             return {"ok": False, "message": "고른 것 중에 번역할 것이 없습니다."}

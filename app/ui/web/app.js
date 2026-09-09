@@ -1891,7 +1891,13 @@ function 견주기칸(index) {
   목록.forEach((p) => {
     const o = document.createElement("option");
     o.value = p.id;
-    o.textContent = `${p.name} (2시간에 ${Math.round(p.minutes_per_hour * 2)}분)`;
+    // **여기서도 몇 GB 를 받는지 말한다.** 견주려고 다른 강도를 고르는 것도
+    // 모델을 새로 받는 길이다. 강도 고르는 자리에만 적어 두면, 정작 「한 번
+    // 재 보기만 하려던」 사람이 3GB 를 모르고 받는다
+    const 더받을것 = Number(p.더받을GB || 0);
+    const 짐 = 더받을것 > 0 ? ` · ＋${더받을것}GB 더 받습니다` : "";
+    o.textContent =
+      `${p.name} (2시간에 ${Math.round(p.minutes_per_hour * 2)}분)${짐}`;
     o.selected = p.id === 견줄강도;
     고르개.appendChild(o);
   });
@@ -3384,6 +3390,17 @@ function 온보딩그리기() {
     줄.textContent = 말;
     칸.appendChild(줄);
   }
+
+  // **이미 받아 둔 사람에게 「3GB 를 받습니다」 라고 하지 않는다.**
+  //
+  // 예전에 whisper 를 써 본 컴퓨터에는 모델이 이미 있고, 앱은 그 자리를
+  // 그대로 쓴다(`settings.existing_model_cache`). 그 사람에게는 이 줄이
+  // 통째로 거짓말이고, 첫 화면에서 하는 거짓말은 나머지도 못 믿게 만든다.
+  const 크기칸 = $("onb-size");
+  if (크기칸) {
+    const 기본강도 = (마지막상태.presets || []).find((p) => p.id === "whisper");
+    크기칸.hidden = !!(기본강도 && 기본강도.받아둠);
+  }
 }
 
 // 지금 몇 번째 단계인가. 다음 단계가 **어느 쪽에서 들어올지** 정하는 데 쓴다
@@ -4181,6 +4198,26 @@ function 강도그리기(지금값) {
     때.textContent = `2시간에 ${Math.round(p.minutes_per_hour * 2)}분`;
 
     label.append(radio, col, 때);
+
+    // **고르면 몇 GB 를 더 받는지 여기서 말한다.**
+    //
+    // 강도마다 모델이 다르다. 「빠르게」로 쓰다가 「극한」으로 올리면 다음
+    // 받아쓰기에서 3GB 를 조용히 더 받는데, 이 자리에는 걸리는 시간만 있고
+    // 용량은 한 글자도 없었다. 눌러 놓고 나서야 「모델을 올리는 중」 을 본다.
+    //
+    // **이미 받아 둔 것에는 아무것도 안 붙인다.** 다섯 줄에 전부 뱃지가
+    // 붙으면 정작 돈이 드는 줄이 안 보인다 — 붙어 있는 것 자체가 신호다.
+    const 더받을것 = Number(p.더받을GB || 0);
+    if (더받을것 > 0) {
+      const 짐 = document.createElement("span");
+      짐.className = "badge need";
+      짐.textContent = `＋${더받을것}GB 더 받습니다`;
+      짐.title =
+        "이 강도가 쓰는 받아쓰기 모델을 아직 안 받았습니다. " +
+        "처음 받아쓸 때 한 번만 받고, 그다음부터는 다시 안 받습니다.";
+      label.appendChild(짐);
+    }
+
     list.appendChild(label);
   });
 }

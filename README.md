@@ -30,6 +30,9 @@ git clone https://github.com/intionma/voice-lrc.git
 **② 폴더 안의 `START.bat` 더블클릭**
 
 처음 한 번만 알아서 설치하고(몇 분 걸립니다), 그다음부터는 바로 켜집니다.
+받는 용량은 **NVIDIA 그래픽카드가 있으면 5GB 남짓, 없으면 3GB 남짓**입니다 —
+설치할 때 무엇이 얼마인지 화면에 적어 줍니다. 이 중 3GB는 받아쓰기 모델이라
+첫 받아쓰기 때 한 번만 받고, 그 뒤로는 다시 안 받습니다.
 처음 켜면 **번역을 어떻게 할지 한 번만 묻습니다** — 쓰는 AI 채팅 / 번역기 / 자동.
 
 > 미리 필요한 것: 윈도우 + [Python 3.11](https://www.python.org/downloads/release/python-3119/)
@@ -39,7 +42,7 @@ git clone https://github.com/intionma/voice-lrc.git
 
 ## 🚀 사용법 — 3단계
 
-**① 음원을 창에 끌어다 놓기** — mp3 · wav · m4a, 폴더째로도 됩니다. 받아쓰기가 자동으로 시작됩니다
+**① 음원을 창에 끌어다 놓고 「전부 받아쓰기」 누르기** — mp3 · wav · m4a, 폴더째로도 됩니다
 
 **② 「번역」 → 「복사하기」** — 복사된 내용을 Claude나 ChatGPT 채팅창에 붙여넣습니다
 
@@ -53,7 +56,8 @@ git clone https://github.com/intionma/voice-lrc.git
 
 ## 🔄 업데이트
 
-설정 → 점검 → **「업데이트하고 다시 켜기」** 버튼 하나면 됩니다. (`git clone`으로 받았을 때)
+설정 맨 위 **「지금 판」** 의 **「업데이트」** 버튼 하나면 됩니다. (`git clone`으로 받았을 때)
+새 판이 나오면 앱이 먼저 알려 줍니다.
 
 <details>
 <summary><b>❓ 자주 묻는 질문</b></summary>

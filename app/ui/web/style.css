@@ -486,6 +486,8 @@ input:focus, select:focus { outline: none; border-color: var(--accent); }
 .radio .why { color: var(--muted); font-size: var(--t-dense); }
 .radio .col { display: flex; flex-direction: column; flex: 1; }
 .badge { font-size: var(--t-small); padding: 2px 7px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); }
+/* 「고르면 몇 GB 를 더 받는다」. 걸리는 시간(초록)과 색이 같으면 둘 다 안 읽힌다 */
+.badge.need { background: var(--warn-soft); color: var(--warn); }
 
 /* 단추 */
 button { font: inherit; }
@@ -1274,6 +1276,7 @@ button.small { padding: 6px 14px; font-size: var(--t-body); }
 /* 이 앱에서 제일 중요한 네 줄인데 제일 작고 흐린 글자였다. 본문 색·한 계단 큰 글 */
 .onb-how { color: var(--text); font-size: var(--t-lead); line-height: 1.7; padding-left: 22px; margin: 0; }
 .onb-how li + li { margin-top: 6px; }
+.onb-how + .hint { margin-top: 14px; }
 
 /* 화면 밖에 띄우는 오류 띠.
  *

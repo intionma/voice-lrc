@@ -1,0 +1,13 @@
+# ASCII only. Korean Windows reads this file as cp949 and pip crashes on
+# non-ASCII bytes. Same trap as the batch files. Do not add Korean here.
+
+# GPU compute libraries (Windows + NVIDIA only).
+#
+# Kept out of requirements.txt on purpose: this is about 1.5 GB and it does
+# nothing without an NVIDIA card. scripts/setup.bat checks for the card and
+# skips this file when there is none.
+#
+# Speech to text needs cuDNN too, not only cuBLAS. Installing cuBLAS alone
+# printed "CUDA libraries OK" while transcription still failed at run time.
+nvidia-cublas-cu12; sys_platform == "win32"
+nvidia-cudnn-cu12; sys_platform == "win32"

@@ -20,6 +20,7 @@ import subprocess
 import platform
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -39,6 +40,7 @@ from app.core import (
     log,
     relaunch,
     model_notes,
+    model_store,
     names as names_store,
     providers,
     quality,
@@ -772,7 +774,7 @@ class Controller:
             # 셈을 하는데(`묶이는수`), 그 둘이 어긋나지 않는지 하네스가 잰다
             "묶을수있는수": self._묶이는수([i for i, _ in enumerate(self.jobs)]),
             # 받아쓰기 강도 목록. 화면이 라디오로 그린다
-            "presets": presets.to_view(),
+            "presets": self._강도목록(),
             # **번역을 어디로 보내는가 — 길 셋과 손잡이 넷.**
             # 화면은 이것만 보고 그린다. 공급자 목록은 「자동」 길에서
             # 「보내는길」 손잡이를 고를 때만 쓴다
@@ -993,6 +995,23 @@ class Controller:
 
                 try:
                     pipeline.transcribe(job, should_stop=멈출까)
+                except model_store.자리부족 as 모자람:
+                    # **판 전체를 세운다.** 트랙마다 따로 터뜨리면 안 된다.
+                    #
+                    # 30트랙을 넣고 누르면 빨강이 서른 개 뜨고, 위쪽 알림은
+                    # 비어 있고, 까닭은 줄을 하나 펴 봐야 나왔다. 서른 개가
+                    # 전부 같은 말인데도 그렇다. 게다가 자리가 모자란 것은
+                    # 다음 트랙이라고 달라지지 않는다 — 안 될 일을 서른 번
+                    # 되풀이한 것이다.
+                    #
+                    # **빨강으로 칠하지도 않는다.** 트랙은 멀쩡하다. 그대로
+                    # 「대기」 로 두면 자리를 비우고 다시 누르기만 하면 된다
+                    job.stage = Stage.대기
+                    job.message = ""
+                    self.notice = str(모자람)
+                    log.write("받아쓰기", "자리가 모자라 판을 세움",
+                              파일=job.audio.name, 남은트랙=len(self.jobs))
+                    break
                 except asr.NoSpeech as 조용함:
                     # 효과음만 있는 트랙이다. 고장이 아니므로 빨강으로 두지 않는다
                     job.stage = Stage.건너뜀
@@ -2266,6 +2285,76 @@ class Controller:
         담은묶음 = [g for i, (g, _) in enumerate(후보) if i in 든자리]
         못담은것 = [g.title for i, (g, _) in enumerate(후보) if i not in 든자리]
         return 담은묶음, 못담은것
+
+    def _강도목록(self) -> list[dict[str, object]]:
+        """강도 목록에 **몇 GB 짜리인지, 이미 받아 뒀는지**를 얹는다.
+
+        강도마다 모델이 다르다. 「빠르게」는 `large-v3-turbo`(1.7GB), 「보통」·
+        「속삭임」·「정확」은 `large-v3`(3.1GB), 「극한」은 **둘 다**. 그런데
+        고르는 자리에는 걸리는 시간만 있고 용량은 한 글자도 없었다. 「빠르게」로
+        쓰다가 「극한」으로 올리면 다음 받아쓰기에서 3GB 를 조용히 더 받는데,
+        화면에는 「모델을 올리는 중」 만 뜬다.
+
+        **디스크를 0.6초마다 뒤지지 않는다.** `state()` 가 그 주기로 돈다.
+        한 번 받아 둔 모델은 사라지지 않으므로 「받아 뒀다」 는 그대로 두고,
+        「아직 없다」 만 가끔 다시 본다.
+        """
+        목록 = presets.to_view()
+        for 하나 in 목록:
+            쓰는것 = [str(하나.get("model") or "")]
+            강도 = presets.get(str(하나.get("id") or ""))
+            if 강도.second_model:
+                쓰는것.append(강도.second_model)
+            하나["더받을GB"] = self._더받을GB(쓰는것)
+            하나["받아둠"] = 하나["더받을GB"] <= 0
+        return 목록
+
+    # 아직 없는 모델을 다시 보기까지 기다리는 시간(초)
+    _다시볼때까지 = 20.0
+
+    def _더받을GB(self, 이름들: list[str]) -> float:
+        """이 모델들을 쓰려면 앞으로 몇 GB 를 더 받아야 하나(캐시).
+
+        받아 둔 것을 다시 세지 않는 셈은 `model_store` 에 있다. 여기서는
+        **디스크를 얼마나 자주 뒤지느냐** 만 맡는다.
+        """
+        본것: set[str] = set()
+        합 = 0.0
+        for 이름 in 이름들:
+            if not 이름 or 이름 in 본것:
+                continue
+            본것.add(이름)
+            if not self._받아뒀나(이름):
+                합 += model_store.크기GB(이름)
+        return round(합, 1)
+
+    def _받아뒀나(self, 이름: str) -> bool:
+        """재 둔 답을 쓰되, **자리를 같이 열쇠로 잡는다.**
+
+        이름만 열쇠로 쓰면 모델 자리가 바뀐 뒤에도 옛 답을 내놓는다. 지금은
+        자리가 켤 때 한 번 정해지지만(`main.use_our_model_dir`), 그것에
+        기대면 자리가 바뀌는 날 **아무도 못 찾는 거짓말**이 된다. 창구마다
+        따로 재 두는 것도 같은 이유다 — 창구가 둘이면 자리도 둘일 수 있다.
+        """
+        잰것들: dict[tuple[str, str], tuple[float, bool]] = (
+            self.__dict__.setdefault("_받아둠본때", {})
+        )
+        열쇠 = (str(model_store.받아두는곳()), 이름)
+        잰것 = 잰것들.get(열쇠)
+        # 받아 둔 것은 안 사라진다. 다시 볼 까닭이 없다
+        if 잰것 is not None and 잰것[1]:
+            return True
+        지금 = time.monotonic()
+        if 잰것 is not None and 지금 - 잰것[0] < Controller._다시볼때까지:
+            return 잰것[1]
+        try:
+            있나 = model_store.받아뒀나(이름)
+        except Exception:      # noqa: BLE001
+            # 못 재면 「받아 뒀다」 고 한다. 멀쩡히 받아 둔 사람에게 「3GB 를
+            # 받습니다」 라고 겁주는 쪽이, 조용한 쪽보다 나쁘다
+            있나 = True
+        잰것들[열쇠] = (지금, 있나)
+        return 있나
 
     def _묶이는수(self, indices: list[int]) -> int:
         """이만큼 고르면 몇 트랙이 실제로 담기나. 화면 단추가 쓴다."""

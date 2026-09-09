@@ -17,8 +17,11 @@ faster-whisper>=1.1.0,<2
 # Window. Uses the Edge WebView2 that Windows already ships with.
 pywebview>=5.0
 
-# GPU compute libraries (Windows + NVIDIA)
-nvidia-cublas-cu12; sys_platform == "win32"
-nvidia-cudnn-cu12; sys_platform == "win32"
+# GPU compute libraries moved to requirements-gpu.txt.
+#
+# They are about 1.5 GB and they are dead weight on a machine with no NVIDIA
+# card -- transcription falls back to CPU either way. setup.bat looks for the
+# card first and only then installs that file. Putting them back here would
+# make every install pay the 1.5 GB again.
 
 # Translation providers are called with the standard library only.

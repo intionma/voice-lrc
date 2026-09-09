@@ -28,6 +28,7 @@ from app.core import (
     gpu,
     log,
     lrc,
+    model_store,
     preprocess,
     preset as presets,
     route,
@@ -817,6 +818,22 @@ class Pipeline:
         if options.device == "cuda":
             self._그래픽카드_비우기()
             options = self._자리가_되는지(job, options)
+
+        # **받기 전에 자리를 잰다.**
+        #
+        # 받다가 디스크가 꽉 차면 반쯤 받은 파일이 남고, 다음에 눌러도 같은
+        # 자리에서 또 터진다. 그때 뜨는 것은 huggingface 가 던진 영어 한 줄이라
+        # 디스크가 꽉 찼다는 것을 아무도 못 알아본다.
+        #
+        # 「극한」은 모델을 둘 쓴다. **둘 다 미리 센다** — 두 시간 받아쓰고
+        # 2차에서 자리가 모자라 터지는 쪽이 훨씬 나쁘다.
+        모자람 = model_store.자리가모자라나(
+            [강도.model, 강도.second_model] if 강도.second_model else [강도.model]
+        )
+        if 모자람:
+            log.write("받아쓰기", "자리가 모자라 시작하지 않음",
+                      파일=job.audio.name, 까닭=모자람)
+            raise model_store.자리부족(모자람)
 
         # **어디에 받는지를 남긴다.** 이것이 없어서 「10분째 모델을 올리는
         # 중」 이 나왔을 때, 받고 있는 것인지 엉뚱한 폴더를 재고 있는 것인지

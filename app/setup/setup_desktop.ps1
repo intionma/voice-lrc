@@ -79,9 +79,9 @@ Write-Host "지우고 싶으면 바로 가기를 그냥 삭제하세요. 앱은 
 # 보인다. 파일은 그 자리에 그대로 있다.
 
 $숨길것 = @(
-    "AGENTS.md", "CLAUDE.md", "LICENSE", "README.md",
-    ".gitattributes", ".gitignore", ".pytest_cache",
-    "_relaunch.bat", "android", "docs", "scripts", "app",
+    "README.md", "app",
+    # 예전 판이 맨 위에 두던 것. 업데이트해 온 폴더에 남아 있을 수 있다
+    "LICENSE", ".gitattributes", ".gitignore", "docs", "scripts", "_relaunch.bat",
     # 켤 때·터질 때 적는 기록. 폴더에 두 개가 늘 보였다. 필요할 때는 「문제 알리기」 가 실어 낸다
     "_start.log", "_crash.log",
     # 파이썬을 깔아 둔 곳. 사용자가 열 일이 없다

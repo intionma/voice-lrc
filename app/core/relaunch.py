@@ -59,7 +59,8 @@ from pathlib import Path
 # 사용자는 돌고 있는 앱을 그대로 쓰면 된다
 기다림_한도 = 60
 
-# 배치와 적은 것은 **프로그램 폴더**에 둔다. 그래야 `%~dp0` 로 서로를 찾는다
+# 배치와 적은 것은 **`app\\` 안**에 둔다(`둘곳`). 배치는 `%~dp0..` 로 한 칸
+# 올라가서 일하고, 기록은 `%~dp0` — 자기 옆 — 에 적는다
 배치이름 = "_relaunch.bat"
 적은것이름 = "_relaunch.log"
 
@@ -150,9 +151,19 @@ def 뿌리() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def 둘곳(뿌리길: Path | None = None) -> Path:
+    """배치와 그 기록을 두는 곳 — **`app\\` 안이다.**
+
+    예전에는 `START.bat` 옆에 두었다. 받자마자 폴더를 열면 `START.bat` ·
+    `README.md` · `app` 셋만 보여야 하는데, 업데이트를 한 번 할 때마다
+    `_relaunch.bat` · `_relaunch.log` 가 맨 위에 하나씩 늘었다.
+    """
+    return (뿌리길 or 뿌리()) / "app"
+
+
 def 적은것(뿌리길: Path | None = None) -> Path:
     """배치가 한 일을 적는 곳."""
-    return (뿌리길 or 뿌리()) / 적은것이름
+    return 둘곳(뿌리길) / 적은것이름
 
 
 def 마지막결과(글: str) -> dict:
@@ -188,7 +199,11 @@ def 배치글(무엇: 할일, pid: int) -> str:
         "@echo off",
         "chcp 65001 >nul",
         f"title trans-text {무엇.이름}",
-        'cd /d "%~dp0"',
+        "REM This file sits in app\\. Everything below runs from the folder",
+        "REM above it, where START.bat and .venv are. The log stays next to",
+        "REM this file so the top folder keeps showing three things only.",
+        'set ROOT=%~dp0..',
+        'cd /d "%ROOT%"',
         "",
         f"set LOG=%~dp0{적은것이름}",
         f'echo ---- {무엇.이름} ---- >> "%LOG%"',
@@ -244,7 +259,7 @@ def 배치글(무엇: 할일, pid: int) -> str:
         "REM Always start the app again, even if the job above failed.",
         "echo.",
         "echo Starting the app again...",
-        'start "" "%~dp0START.bat"',
+        'start "" "%ROOT%\\START.bat"',
         "exit",
     ]
     return "\r\n".join(줄) + "\r\n"
@@ -269,8 +284,14 @@ def 띄우기(무엇: 할일, 뿌리길: Path | None = None, 띄우개=None) -> 
 
     띄운 뒤에 **부르는 쪽이 앱을 닫아야** 배치가 일을 시작한다.
     """
+    # **쓰기 전에 본다.** 예전에는 배치를 다 써 놓고 띄우는 자리에서야
+    # 「윈도우가 아니다」 로 멈췄다. 그래서 시험을 돌릴 때마다 진짜 앱 폴더에
+    # `_relaunch.bat` 이 하나씩 남았고, 공개판으로 내보낼 뻔했다
+    if 띄우개 is None and sys.platform != "win32":
+        raise RuntimeError("껐다 켜기는 윈도우에서만 됩니다.")
     뿌리길 = 뿌리길 or 뿌리()
-    배치 = 뿌리길 / 배치이름
+    배치 = 둘곳(뿌리길) / 배치이름
+    배치.parent.mkdir(parents=True, exist_ok=True)
     # ASCII 가 아닌 글자가 하나라도 있으면 여기서 터진다. 조용히 `?` 로
     # 바꿔 두면 배치가 엉뚱한 줄을 실행하고 앱은 안 돌아온다
     배치.write_text(배치글(무엇, os.getpid()), encoding="ascii")

@@ -9,11 +9,11 @@
 
 🎵 음원 &nbsp;→&nbsp; 📝 받아쓰기 (내 컴퓨터) &nbsp;→&nbsp; 💬 AI 채팅에 복붙 &nbsp;→&nbsp; 🎧 `.lrc` 자막 완성
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](app/LICENSE)
 ![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-0078d4)
 ![Python](https://img.shields.io/badge/Python-3.11-3776ab)
 
-<img src="docs/img/main.png" width="840" alt="메인 화면">
+<img src="app/img/main.png" width="840" alt="메인 화면">
 
 </div>
 
@@ -48,11 +48,11 @@ git clone https://github.com/intionma/voice-lrc.git
 
 **③ AI가 준 답을 복사해서 오른쪽 칸에 붙여넣기** — 몇 번째 묶음인지 안 골라도 알아서 찾고, 줄이 빠지면 바로 알려 줍니다. 복사만 해도 앱이 알아채고 받아 갑니다
 
-<img src="docs/img/translate.png" width="840" alt="번역 화면 — 왼쪽을 복사해서 AI에 넣고, 답은 복사만 하면 앱이 받아 간다">
+<img src="app/img/translate.png" width="840" alt="번역 화면 — 왼쪽을 복사해서 AI에 넣고, 답은 복사만 하면 앱이 받아 간다">
 
 **끝** — 음원 옆에 `.lrc` 자막 파일이 생깁니다. 줄마다 눌러서 들어 보고 바로 고칠 수도 있습니다
 
-<img src="docs/img/subtitle.png" width="840" alt="자막 확인 화면 — 한 줄씩 듣고 고치기">
+<img src="app/img/subtitle.png" width="840" alt="자막 확인 화면 — 한 줄씩 듣고 고치기">
 
 ## 🔄 업데이트
 
@@ -97,11 +97,12 @@ API 키는 들어가지 않습니다.
 **앱 아이콘이 안 보여요.**
 처음 켤 때 바탕화면과 시작 메뉴에 생깁니다. 지웠으면 앱 폴더의 `START.bat`을
 한 번 누르거나, `.venv\.desktop_done` 파일을 지우고 다시 켜세요.
+(`.venv` 는 숨긴 폴더입니다. 탐색기 **[보기] › [숨긴 항목]** 을 켜면 보입니다)
 
 </details>
 
 ## 📄 라이선스와 주의
 
-- 코드: [MIT](LICENSE) · 글꼴(Pretendard): [SIL OFL 1.1](app/ui/web/fonts/LICENSE.txt)
+- 코드: [MIT](app/LICENSE) · 글꼴(Pretendard): [SIL OFL 1.1](app/ui/web/fonts/LICENSE.txt)
 - 동인 음성(성인 대상 작품 포함) 감상용 도구입니다. 만든 자막·전사·번역을 **공개
   배포하면 원작 저작권 문제**가 될 수 있습니다. 개인 감상 용도로만 쓰세요.

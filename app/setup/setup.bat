@@ -1,8 +1,8 @@
 @echo off
 REM Only ASCII in this file. cmd.exe misreads non-ASCII batch files.
 title trans-text setup
-REM This file lives in scripts\. Work from the project root.
-cd /d "%~dp0.."
+REM This file lives in app\setup\. Work from the project root.
+cd /d "%~dp0..\.."
 
 REM ---- Say how big this is before spending the bandwidth ----
 REM Nobody was told. The window sat on "Installing packages" for ten minutes
@@ -33,6 +33,15 @@ if not exist ".venv\Scripts\python.exe" (
     py -3.11 -m venv .venv 2>nul
     if not exist ".venv\Scripts\python.exe" python -m venv .venv
 )
+
+REM Hide .venv the moment it exists. The folder should show START.bat,
+REM README.md and app - nothing else. Hidden is still there: git and Python
+REM do not care, and "Hidden items" in Explorer shows it again.
+REM
+REM The .gitignore inside it makes git skip the whole folder. The root has no
+REM .gitignore of its own any more - that file was one more thing to see.
+if exist ".venv" attrib +h ".venv" >nul 2>nul
+if exist ".venv" if not exist ".venv\.gitignore" (>".venv\.gitignore" echo *)
 
 if not exist ".venv\Scripts\python.exe" (
     echo.
@@ -96,7 +105,7 @@ echo ============================================================
 
 REM Speech to text needs cuDNN too, not only cuBLAS. Checking only cuBLAS
 REM printed "CUDA libraries OK" while transcription still failed at run time
-REM with a confusing message. scripts/check_gpu.py lists what is required.
+REM with a confusing message.
 if defined HAS_NVIDIA (
     set CUDA_MISSING=
     if not exist ".venv\Lib\site-packages\nvidia\cublas\bin\cublas64_12.dll" set CUDA_MISSING=1
@@ -106,7 +115,8 @@ if defined HAS_NVIDIA (
     if defined CUDA_MISSING (
         echo.
         echo [WARNING] Some CUDA libraries were NOT installed.
-        echo GPU will not work. Run 9_check_gpu.bat and send the output.
+        echo GPU will not work. Start the app, open Settings, press the
+        echo report button at the top, and send what it copies.
     ) else (
         echo CUDA libraries OK
     )

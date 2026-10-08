@@ -18,7 +18,8 @@
 
 $ErrorActionPreference = "Continue"
 
-$뿌리 = Split-Path -Parent $PSScriptRoot
+# 이 파일은 app\setup\ 에 있다. 두 칸 올라가야 START.bat 이 있는 곳이다
+$뿌리 = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $켜개 = Join-Path $뿌리 "START.bat"
 $아이콘 = Join-Path $뿌리 "app\ui\web\icon.ico"
 $이름 = "trans-text"

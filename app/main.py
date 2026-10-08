@@ -48,9 +48,60 @@ from app.core import settings as settings_store
 _한개자물쇠 = None
 
 
+def 적는곳() -> Path:
+    """켤 때·터질 때 적는 기록을 두는 곳 — **`app\\` 안이다.**
+
+    예전에는 `START.bat` 옆에 두었다. 받자마자 폴더를 열면 `START.bat` ·
+    `README.md` · `app` 셋만 보여야 하는데, 한 번 켜면 `_start.log` 가,
+    한 번 터지면 `_crash.log` 가 맨 위에 늘었다.
+
+    exe 로 묶은 판에는 `app\\` 이 없다. 그때는 exe 옆에 둔다.
+    """
+    안 = 뿌리 / "app"
+    return 안 if 안.is_dir() else 뿌리
+
+
+# 예전 판이 맨 위에 두던 것들
+옛자리것들 = ("_start.log", "_crash.log", "_relaunch.log", "_relaunch.bat")
+
+
+def 옛자리_치우기() -> None:
+    """예전 판이 맨 위에 남긴 기록을 `app\\` 안으로 옮기거나 지운다.
+
+    **지우기 전에 옮긴다.** 이 판으로 올라오는 바로 그 업데이트는 **옛 코드**가
+    돌린 것이라 `_relaunch.log` 를 맨 위에 적었다. 그냥 지우면 「업데이트가
+    됐는지」 를 앱이 읽을 데가 없어서, 한 번은 아무 말도 없이 넘어간다.
+
+    `_relaunch.bat` 은 **방금 만든 것이면 건드리지 않는다.** 그 배치가 지금
+    이 앱을 띄우고 아직 끝나는 중일 수 있다 — 도는 배치를 지우면 cmd 가
+    「배치 파일을 찾을 수 없다」 를 띄운다.
+
+    무엇이 실패해도 넘어간다. 이것 때문에 앱이 안 켜지면 안 된다.
+    """
+    import time
+
+    새자리 = 적는곳()
+    if 새자리 == 뿌리:
+        return
+    for 이름 in 옛자리것들:
+        옛것 = 뿌리 / 이름
+        try:
+            if not 옛것.is_file():
+                continue
+            if 이름.endswith(".bat") and time.time() - 옛것.stat().st_mtime < 120:
+                continue
+            새것 = 새자리 / 이름
+            if 이름.endswith(".log") and not 새것.exists():
+                옛것.replace(새것)
+            else:
+                옛것.unlink()
+        except OSError:
+            continue
+
+
 def 터진자리() -> Path:
-    """터진 까닭을 적는 곳. 프로그램 폴더에 둔다 — 찾기 쉬워야 한다."""
-    return 뿌리 / 터진것이름
+    """터진 까닭을 적는 곳. 찾기 쉬워야 한다 — 「문제 알리기」 도 여기서 읽는다."""
+    return 적는곳() / 터진것이름
 
 
 def 콘솔없이_켜졌나() -> bool:
@@ -67,7 +118,7 @@ def 나오는말_돌리기() -> None:
     if not 콘솔없이_켜졌나():
         return
     try:
-        새것 = open(뿌리 / "_start.log", "a", encoding="utf-8", errors="replace")
+        새것 = open(적는곳() / "_start.log", "a", encoding="utf-8", errors="replace")
     except OSError:
         새것 = open(os.devnull, "w", encoding="utf-8")
     if sys.stdout is None:
@@ -148,6 +199,12 @@ def 이미_켜져_있다고_알리기() -> None:
 
 
 def main() -> int:
+    # 기록을 새 자리에 열기 **전에** 옛 자리 것을 옮긴다. 순서가 바뀌면
+    # 새 `_start.log` 가 먼저 생겨서 옛것을 옮길 자리가 없다
+    try:
+        옛자리_치우기()
+    except Exception:      # noqa: BLE001
+        pass
     나오는말_돌리기()
     켜져있나, 자물쇠 = 이미_켜져_있나()
     if 켜져있나:

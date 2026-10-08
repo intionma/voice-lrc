@@ -1,0 +1,9 @@
+# cmd.exe 는 배치 파일이 윈도우 줄바꿈(CRLF)일 것으로 보고 읽는다.
+# 유닉스 줄바꿈(LF)만 있으면 여러 줄짜리 `if ( ... )` 안에서 엉뚱하게 끊긴다.
+#
+# **이 파일이 `app\` 안에 있는 까닭.** 공개판은 받자마자 폴더를 열면
+# `START.bat` · `README.md` · `app` 셋만 보여야 한다. 맨 위에 두면 그것이
+# 넷째가 된다. 여기 두면 `app\` 아래의 배치(`setup\setup.bat`)만 덮으므로,
+# `START.bat` 은 **CRLF 그대로 저장소에 담는다** — 받는 쪽 git 설정이 무엇이든
+# CRLF 로 놓인다(`scripts/publish.py` 가 그것을 확인한다).
+*.bat text eol=crlf

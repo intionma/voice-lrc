@@ -24,7 +24,7 @@ echo  First run. Installing what the program needs.
 echo  This takes several minutes. Leave this window open.
 echo ============================================================
 echo.
-call "%~dp0scripts\setup.bat"
+call "%~dp0app\setup\setup.bat"
 
 REM Check the same things as above, not only that .venv exists.
 REM If pip stopped halfway the folder is there but the parts are not,
@@ -43,6 +43,12 @@ pause
 exit /b 1
 
 :run
+REM Keep .venv out of sight on every start, not only on the first install.
+REM Folders installed before this line existed never ran it. attrib on an
+REM already hidden folder is a no-op, so this costs nothing.
+attrib +h ".venv" >nul 2>nul
+if not exist ".venv\.gitignore" (>".venv\.gitignore" echo *)
+
 REM Put an icon on the Desktop and in the Start menu, once ever.
 REM
 REM This cannot live in the :install branch. Anyone who already installed
@@ -56,8 +62,8 @@ REM The marker lives inside .venv, not in the root. The whole point is that
 REM this folder shows one file. A marker sitting next to START.bat would be
 REM the second one.
 if exist ".venv\.desktop_done" goto skip_desktop
-if not exist "scripts\setup_desktop.ps1" goto skip_desktop
-powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\setup_desktop.ps1"
+if not exist "app\setup\setup_desktop.ps1" goto skip_desktop
+powershell -NoProfile -ExecutionPolicy Bypass -File "app\setup\setup_desktop.ps1"
 echo done > ".venv\.desktop_done"
 
 :skip_desktop

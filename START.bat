@@ -61,10 +61,15 @@ REM requirement. That is why the marker is written either way.
 REM The marker lives inside .venv, not in the root. The whole point is that
 REM this folder shows one file. A marker sitting next to START.bat would be
 REM the second one.
-if exist ".venv\.desktop_done" goto skip_desktop
+REM The marker was .desktop_done until the script got its BOM. Before that
+REM it failed on every Korean Windows yet still left the marker, so the
+REM shortcut was never retried. A new name gives everyone one more go.
+if exist ".venv\.desktop_v2" goto skip_desktop
 if not exist "app\setup\setup_desktop.ps1" goto skip_desktop
-powershell -NoProfile -ExecutionPolicy Bypass -File "app\setup\setup_desktop.ps1"
-echo done > ".venv\.desktop_done"
+REM Write what it says to a file. This window closes right after, so
+REM anything it printed - red errors included - flashed past unread.
+powershell -NoProfile -ExecutionPolicy Bypass -File "app\setup\setup_desktop.ps1" > "app\_desktop.log" 2>&1
+echo done > ".venv\.desktop_v2"
 
 :skip_desktop
 REM Check that the program itself loads, while this window is still up.

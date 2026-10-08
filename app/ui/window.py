@@ -134,6 +134,71 @@ def web_dir() -> Path:
     return Path(__file__).resolve().parent / "web"
 
 
+# 화면 파일의 종류. **파이썬의 `mimetypes` 에 맡기지 않는다** — 윈도우에서는
+# 레지스트리를 읽어서, 기계에 따라 `.js` 가 `text/plain` 으로 나온다
+_종류 = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".png": "image/png",
+    ".ico": "image/x-icon",
+    ".svg": "image/svg+xml",
+    ".woff2": "font/woff2",
+    ".woff": "font/woff",
+}
+
+
+def 화면_앱(뿌리: Path | None = None):
+    """화면 파일을 내주는 작은 WSGI 앱. `create_window` 에 **경로 대신** 넘긴다.
+
+    **폴더 경로에 `#` 이 있으면 창이 안 떴다.** 실제로 그랬다 —
+    `C:\\Users\\…\\#minetion\\voice-lrc` 에 받았더니 「500 Internal Server
+    Error」 만 떴다. pywebview(6.x)는 경로를 받으면 주소처럼 다뤄서 `#` 에서
+    잘라 버린다. 그러면 서버 뿌리가 엉뚱한 윗폴더가 되고, 창은 `/` 를 연다.
+    그런데 pywebview 의 `/` 는 그 자체로 고장 나 있다(`asset()` 에 `file` 을
+    안 넘긴다). 둘이 겹쳐서 500 이 된다.
+
+    경로를 pywebview 에 아예 안 넘기면 그 셈을 안 거친다. 앱을 넘기면 pywebview
+    는 그것을 `/` 에 그대로 붙이고 창도 `/` 를 연다 — `/` 는 여기서
+    `index.html` 로 받는다.
+
+    JS 와 파이썬 사이는 이 서버를 안 거친다(윈도우는 `postMessage`). 소리는
+    `data:` 주소로 넘긴다. 그래서 바꿔도 다른 것은 그대로다.
+    """
+    뿌리 = (뿌리 or web_dir()).resolve()
+
+    def 앱(environ, start_response):
+        길 = environ.get("PATH_INFO") or "/"
+        # WSGI 는 길을 latin-1 로 풀어서 준다. 한글 파일 이름을 되살린다
+        try:
+            길 = 길.encode("latin-1").decode("utf-8")
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            pass
+        if 길 in ("", "/"):
+            길 = "/index.html"
+        try:
+            대상 = (뿌리 / 길.lstrip("/")).resolve()
+            있나 = 대상.is_file() and 뿌리 in 대상.parents
+        except (OSError, ValueError):
+            있나 = False
+        if not 있나:
+            # 화면 폴더 밖(`../../main.py`)은 없는 것과 같다
+            start_response("404 Not Found", [("Content-Type", "text/plain; charset=utf-8")])
+            return [b"not found"]
+        본문 = 대상.read_bytes()
+        start_response("200 OK", [
+            ("Content-Type", _종류.get(대상.suffix.lower(), "application/octet-stream")),
+            ("Content-Length", str(len(본문))),
+            # 업데이트한 뒤 옛 화면이 남지 않게. pywebview 도 이렇게 했다
+            ("Cache-Control", "no-cache, no-store, must-revalidate"),
+        ])
+        return [본문]
+
+    return 앱
+
+
 def _file_filter() -> str:
     """파일 고르기 창에 넘길 거르개.
 
@@ -174,7 +239,7 @@ def run() -> int:
 
     window = webview.create_window(
         TITLE,
-        str(web_dir() / "index.html"),
+        화면_앱(),          # 경로가 아니라 앱을 넘긴다 — `화면_앱` 을 보라
         js_api=controller,
         width=int(크기.get("width", 1100)),
         height=int(크기.get("height", 760)),

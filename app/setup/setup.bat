@@ -126,7 +126,11 @@ if defined HAS_NVIDIA (
 
 echo.
 echo ============================================================
-echo Done. Now double click START.bat in the folder above.
+REM START.bat calls this file and starts the app right after the pause.
+REM This line used to say "double click START.bat" - while START.bat was
+REM the one running it.
+echo Done. Press any key and the app starts.
+echo From now on, just double click START.bat.
 echo ============================================================
 echo.
 pause

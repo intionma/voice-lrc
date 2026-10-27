@@ -170,6 +170,21 @@
         <button class="ghost small" id="gpu-fix-go">고치고 다시 켜기</button>
       </div>
 
+      <!-- **시작하는 순간 한 번만 묻는다.** 미성년 설정으로 보이는 작품이 있을
+           때만 뜬다. 원클릭은 눌러 놓고 자러 가는 것이라, 중간에 멈춰 물으면
+           아침에 번역이 안 돼 있다. 막지 않는다 — 작품마다 고르게 할 뿐이다 -->
+      <div class="clues minor" id="pre-minor" hidden>
+        <div class="clue-head">
+          <div class="cat">미성년 설정으로 보이는 작품이 있습니다</div>
+          <div class="sub">작품마다 고르고 시작하세요. 시작한 뒤에는 묻지 않습니다 — 받아쓰기는 모두 끝까지 합니다.</div>
+        </div>
+        <div id="pre-minor-list"></div>
+        <div class="clue-narrow">
+          <button class="primary" id="pre-minor-go" type="button">이대로 시작</button>
+          <button class="ghost small" id="pre-minor-cancel" type="button">취소</button>
+        </div>
+      </div>
+
       <div class="drop" id="drop">
         <span class="drop-icon">📁</span>
         <strong>음원을 여기에 끌어다 놓으세요</strong>
@@ -252,15 +267,12 @@
                사람이 대사를 볼 틈이 없어서, 보내기 전에 한 번만 묻는다 -->
           <div id="minor-hold" class="clues minor" hidden>
             <div class="clue-head">
-              <div class="cat">이 작품은 미성년 설정으로 보입니다 — 자동 번역을 시작하지 않았습니다</div>
-              <div class="sub">성인 작품이 맞으면 「그래도 번역」 을 누르세요. 막지 않습니다. 정하는 것은 쓰는 분입니다.</div>
-              <div class="sub" id="minor-tags" hidden></div>
-              <div class="sub" id="minor-sum"></div>
+              <div class="cat">시작할 때 「받아쓰기만」 으로 정한 작품입니다</div>
+              <div class="sub">미성년 설정으로 보여서 자동 번역을 하지 않았습니다. 번역하려면 「이제 번역」 을 누르세요.</div>
             </div>
-            <div id="minor-list" class="clue-list"></div>
             <div class="clue-narrow">
-              <button id="minor-go" class="ghost small" type="button">그래도 번역</button>
-              <span class="clue-note">받아쓰기는 끝까지 됐습니다. 복사해서 직접 번역하는 길도 그대로입니다.</span>
+              <button id="minor-go" class="ghost small" type="button">이제 번역</button>
+              <span class="clue-note">복사해서 직접 번역하는 길도 그대로입니다.</span>
             </div>
           </div>
 

@@ -244,11 +244,12 @@ class Controller:
         self._narrow_cancel = threading.Event()
         # 단서는 600줄을 다 훑는다. 화면이 자주 다시 그리므로 같은 것은 담아 둔다
         self._단서담음: dict[tuple, dict[str, Any]] = {}
-        # 미성년 설정으로 보여 **자동 번역을 시작하지 않은** 작품 → 근거.
-        # 막는 것이 아니다. 사람이 근거를 보고 「그래도 번역」 을 누르면 간다
-        self._미성년멈춤: dict[str, dict[str, Any]] = {}
-        # 사람이 확인하고 번역하라고 한 작품. 다시 묻지 않는다
-        self._미성년확인: set[str] = set()
+        # 미성년 의심 작품을 **시작할 때** 어떻게 하기로 했나. 작품 열쇠 →
+        # 「번역」 · 「받아쓰기」. 한 번 정하면 그 판 동안 다시 묻지 않는다
+        self._미성년결정: dict[str, str] = {}
+        # 시작할 때는 안 걸렸는데 받아쓰고 나서 대사에서 걸린 작품. **멈추지
+        # 않고 번역한다** — 끝난 뒤 요약에 한 줄 남길 뿐이다
+        self._미성년기록: dict[str, str] = {}
         # 일꾼이 쓰는 흐름. 받아쓰기 모델을 내려야 할 때 여기로 부른다
         self._pipeline: Pipeline | None = None
         # 강도를 견주는 중인지. 여기도 칸을 미리 다 만들어 둔다
@@ -1087,8 +1088,10 @@ class Controller:
         for group in self.groups:
             if self._stop.is_set():
                 break
-            if self._미성년이면멈추기(group):
+            if self._미성년결정.get(group.work_key) == "받아쓰기":
+                # 시작할 때 「받아쓰기만」 으로 정한 작품이다
                 continue
+            self._대사로걸렸나(group)
             try:
                 pipeline.run_auto_translation(group, should_stop=self._stop.is_set)
             except Exception as error:
@@ -1119,6 +1122,11 @@ class Controller:
                               분류=h.category, 다시보냄=h.resent, 미성년의심=h.minor)
             elif 우연말:
                 self.notice = 우연말
+        # 대사에서 나중에 걸린 작품. 멈추지 않았으니 끝나고 나서 알린다
+        if self._미성년기록:
+            줄 = ("대사에 미성년 의심 말이 있었던 작품 (번역은 했습니다): "
+                 + ", ".join(sorted(set(self._미성년기록.values()))))
+            self.notice = f"{self.notice} · {줄}" if self.notice else 줄
 
     def _묶음한도(self) -> dict[str, Any]:
         """묶음을 어떻게 짤지 — 한 묶음의 크기와, 낱말을 가릴지.
@@ -1320,8 +1328,10 @@ class Controller:
                  if h.batch.number == batch.number), ""),
             # 거절이면 **어디가 걸렸을 만한지.** 거절이 아니면 None
             "clues": self._거절단서(group, batch),
-            # 미성년 설정으로 보여 자동 번역을 시작하지 않았으면 그 근거
-            "minor_hold": self._미성년멈춤.get(group.key),
+            # 시작할 때 「받아쓰기만」 으로 정한 작품이면 그렇다고 알린다. 번역
+            # 화면에서 「이제 번역」 을 누를 수 있다
+            "minor_hold": ({"title": group.title}
+                           if self._미성년결정.get(group.work_key) == "받아쓰기" else None),
             "title": group.title,
             "files": group.file_count,
             "span": batch.span,
@@ -2990,79 +3000,121 @@ class Controller:
             })
         return 난것
 
-    # ---- 미성년 의심 — 자동 번역 직전에 한 번 묻는다 ----
+    # ---- 미성년 의심 — 시작할 때 한 번만 묻는다 ----
     #
-    # 원클릭(받아쓰기만 누르면 번역까지)에서는 사람이 대사를 볼 틈이 없다.
-    # 일본어를 모르면 미성년 설정인 줄도 모르고 넣는다. 그래서 **자동 번역
-    # 직전에** 그 작품만 멈추고 근거를 보여 준다.
+    # 원클릭은 **눌러 놓고 자러 가는 것**이다. 중간에 멈춰서 물으면 아침에
+    # 번역이 안 된 채 확인 창만 떠 있다. 그래서 「시작」 을 누르는 순간 한 번에
+    # 묻는다 — 작품마다 「번역까지 / 받아쓰기만」.
     #
-    # **막지 않는다.** 근거를 보고 「그래도 번역」 을 누르면 간다. 받아쓰기는
-    # 늘 끝까지 간다. 손으로 복사해 가는 길도 그대로다.
+    # 시작할 때 볼 수 있는 것은 판매처 태그 · 제목 · 이미 받아쓴 대사뿐이다.
+    # 받아쓴 뒤 대사에서 새로 걸린 작품은 **멈추지 않고 번역한다**(품번으로 이미
+    # 꽤 걸러진다). 끝난 뒤 요약에 한 줄만 남긴다.
+    #
+    # **막지 않는다.** 정하는 것은 쓰는 사람이다.
 
     # 근거로 보여 줄 줄 수. 다 보여 주면 600줄이다
-    미성년근거줄 = 12
+    미성년근거줄 = 5
 
-    def _미성년근거(self, group: Group) -> dict[str, Any] | None:
-        """이 작품이 미성년 설정으로 보이면 근거를. 아니면 None.
-
-        판매처 태그(가장 확실하다)와 대사를 본다. 대사는 거절 단서와 같은
-        규칙이다(`refusal_terms.미성년의심` — ⚠ 규칙 + 학년·단서용 말).
-        """
-        작품 = self.works.get(str(getattr(group, "work_key", "") or ""))
+    def _미성년근거(self, 열쇠: str, 트랙들: list[tuple[int, Job]]) -> dict[str, Any] | None:
+        """이 작품이 미성년 설정으로 보이면 근거를. 아니면 None."""
+        작품 = self.works.get(str(열쇠 or ""))
         태그 = [g for g in (getattr(작품, "genres", None) or [])
               if g in dlsite.MINOR_GENRES_STRONG]
-        글들 = [str(줄.get("ja", "")) for 줄 in (group.segments or [])]
-        대사로 = refusal_terms.미성년의심(글들)
-        if not 태그 and not 대사로:
+        제목 = str(getattr(작품, "title", "") or "")
+        제목걸림 = ([{"term": h.말, "gloss": h.뜻} for h in refusal_terms.찾기(제목, 소리도=False)
+                    if h.단계 == 5]
+                   if 제목 and refusal_terms.미성년의심([제목]) else [])
+        재료 = []
+        for 자리, job in 트랙들:
+            for 줄 in job.segments or []:
+                시작 = float(줄.get("start", 0.0))
+                재료.append({
+                    "index": int(줄["index"]), "ja": str(줄.get("ja", "")),
+                    "avg_logprob": 줄.get("avg_logprob"), "track": 자리,
+                    "track_title": job.audio.stem, "start": 시작,
+                    "end": float(줄.get("end", 시작)), "at": exchange._hms(시작),
+                })
+        대사로 = bool(재료) and refusal_terms.미성년의심([줄["ja"] for 줄 in 재료])
+        if not (태그 or 제목걸림 or 대사로):
             return None
-        단서 = refusal_terms.단서(self._단서재료(group, group.segments or []))
-        줄들 = [줄 for 줄 in 단서["lines"] if 줄["top"] >= 5][: self.미성년근거줄]
+        줄들 = []
+        if 대사로:
+            줄들 = [줄 for 줄 in refusal_terms.단서(재료)["lines"] if 줄["top"] >= 5]
         return {
+            "key": 열쇠,
+            "title": 제목 or (트랙들[0][1].audio.parent.name if 트랙들 else 열쇠),
             "tags": [{"term": g, "gloss": refusal_terms.미성년뜻.get(g, "")} for g in 태그],
-            "lines": 줄들,
-            "count": sum(1 for 줄 in 단서["lines"] if 줄["top"] >= 5),
-            "title": group.title,
+            "title_hits": 제목걸림,
+            "lines": 줄들[: self.미성년근거줄],
+            "count": len(줄들),
         }
 
-    def _미성년이면멈추기(self, group: Group) -> bool:
-        """자동 번역 직전. 의심되면 그 작품만 멈추고 True."""
-        if group.session is None or group.done or group.key in self._미성년확인:
-            return False
-        근거 = self._미성년근거(group)
-        if 근거 is None:
-            return False
-        self._미성년멈춤[group.key] = 근거
-        self.notice = (f"「{group.title}」 은 미성년 설정으로 보여 자동 번역을 시작하지 "
-                       "않았습니다. 번역 화면에서 근거를 보고 정하세요.")
-        log.write("번역", "미성년 의심 — 자동 번역 전에 멈춤", 작품=group.key,
-                  태그=len(근거["tags"]), 줄=근거["count"])
-        return True
+    def minor_precheck(self, indices: list[int] | None = None) -> dict[str, Any]:
+        """「시작」 을 누르는 순간 부른다. 물어볼 작품이 있으면 근거와 함께 준다.
+
+        자동 번역을 안 하는 길(복붙)이면 물을 것이 없다. 이미 정한 작품도 안 묻는다.
+        """
+        if routes.정해진값(self.settings)["보내는길"] == "manual":
+            return {"ok": True, "works": []}
+        고른 = {int(i) for i in indices} if indices else None
+        with self._lock:
+            트랙들 = [(자리, job) for 자리, job in enumerate(self.jobs)
+                    if 고른 is None or 자리 in 고른]
+        작품별: dict[str, list[tuple[int, Job]]] = {}
+        for 자리, job in 트랙들:
+            열쇠 = self._display_key(job)
+            if 열쇠 in self._미성년결정:
+                continue
+            작품별.setdefault(열쇠, []).append((자리, job))
+        난것 = []
+        for 열쇠, 그것들 in 작품별.items():
+            근거 = self._미성년근거(열쇠, 그것들)
+            if 근거 is not None:
+                난것.append(근거)
+        return {"ok": True, "works": 난것}
+
+    def minor_decide(self, choices: dict[str, str]) -> dict[str, Any]:
+        """시작할 때 고른 것을 담는다. `{작품 열쇠: "번역" | "받아쓰기"}`."""
+        for 열쇠, 고른것 in (choices or {}).items():
+            if 고른것 in ("번역", "받아쓰기"):
+                self._미성년결정[str(열쇠)] = 고른것
+                log.write("번역", "미성년 의심 작품 — 시작할 때 정함", 작품=열쇠, 고른것=고른것)
+        return {"ok": True}
+
+    def _대사로걸렸나(self, group: Group) -> None:
+        """시작할 때는 안 걸렸는데 대사에서 걸렸나. **멈추지 않는다** — 적어만 둔다."""
+        if group.work_key in self._미성년결정 or group.work_key in self._미성년기록:
+            return
+        if refusal_terms.미성년의심([str(줄.get("ja", "")) for 줄 in (group.segments or [])]):
+            self._미성년기록[group.work_key] = group.title
+            log.write("번역", "대사에서 미성년 의심 — 번역은 함", 작품=group.work_key)
 
     def minor_go(self, key: str = "") -> dict[str, Any]:
-        """근거를 보고 「그래도 번역」 — 그 작품을 이어서 자동 번역한다."""
+        """「받아쓰기만」 으로 정했던 작품을 이제 번역한다. 그 작품 트랙을 전부."""
         group = self._그룹찾기(key) if key else self.current_group()
         if group is None or group.session is None:
             return {"ok": False, "message": "그 작품을 찾지 못했습니다."}
-        self._미성년확인.add(group.key)
-        self._미성년멈춤.pop(group.key, None)
-        log.write("번역", "미성년 의심 작품을 사람이 확인하고 번역", 작품=group.key)
+        self._미성년결정[group.work_key] = "번역"
+        log.write("번역", "받아쓰기만 하기로 했던 작품을 번역", 작품=group.work_key)
         if routes.정해진값(self.settings)["보내는길"] == "manual":
-            return {"ok": True, "message": "확인했습니다. 복사해서 번역하세요."}
+            return {"ok": True, "message": "복사해서 번역하세요."}
         pipeline = self._pipeline or self._make_pipeline(self.settings)
+        같은작품 = [g for g in self.groups if g.work_key == group.work_key]
 
         def 돌리기() -> None:
-            try:
-                pipeline.run_auto_translation(group, should_stop=self._stop.is_set)
-            except Exception as error:      # noqa: BLE001
-                self.notice = f"자동 번역이 실패해 복붙으로 넘깁니다: {error}"
-                log.error("자동 번역 실패", error, 작품=group.key)
-            self._absorb(group, pipeline)
+            for 하나 in 같은작품:
+                try:
+                    pipeline.run_auto_translation(하나, should_stop=self._stop.is_set)
+                except Exception as error:      # noqa: BLE001
+                    self.notice = f"자동 번역이 실패해 복붙으로 넘깁니다: {error}"
+                    log.error("자동 번역 실패", error, 작품=하나.key)
+                self._absorb(하나, pipeline)
 
         if not self._run_in_background:
             돌리기()
         else:
             threading.Thread(target=돌리기, daemon=True).start()
-        return {"ok": True, "message": f"「{group.title}」 번역을 시작했습니다."}
+        return {"ok": True, "message": "번역을 시작했습니다."}
 
     def narrow_batch(self, number: int, key: str = "") -> dict[str, Any]:
         """거절당한 묶음을 반씩 나눠 다시 보내 **막히는 줄**을 찾는다.

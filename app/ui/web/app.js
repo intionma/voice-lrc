@@ -555,7 +555,9 @@ function 다음행동(job) {
   }
   if (job.stage === "건너뜀") return { 글: "말 없음", 모양: "q", 잠김: true };
   return { 글: "받아쓰기", 모양: "p",
-           할일: async () => { 마지막상태 = await api().start_tracks([job.index]); 작업그리기(); } };
+           할일: () => 시작전점검(async () => {
+             마지막상태 = await api().start_tracks([job.index]); 작업그리기();
+           }, [job.index]) };
 }
 
 function 트랙표(줄들, 작품이름도) {
@@ -717,10 +719,13 @@ function 선택바그리기() {
   받기.textContent = 받아쓸것.length ? `받아쓰기 (${받아쓸것.length})` : "받아쓰기";
   받기.disabled = !받아쓸것.length;
   받기.title = 받아쓸것.length ? "" : "고른 것 중에 받아쓸 것이 없습니다";
-  받기.onclick = 안전하게(async () => {
-    마지막상태 = await api().start_tracks(받아쓸것.map((x) => x.job.index));
-    선택트랙.clear();
-    작업그리기();
+  받기.onclick = 안전하게(() => {
+    const 번호들 = 받아쓸것.map((x) => x.job.index);
+    return 시작전점검(async () => {
+      마지막상태 = await api().start_tracks(번호들);
+      선택트랙.clear();
+      작업그리기();
+    }, 번호들);
   }, "받아쓰기를 시작하지 못했습니다");
   바.appendChild(받기);
 
@@ -3013,7 +3018,11 @@ function 단서그리기(단서) {
 // 다 그리면 600줄짜리가 통째로 늘어선다. 앞의 것만 그리고 몇 줄 더 있는지 적는다
 const 단서보일수 = 150;
 
-// ---- 미성년 의심 — 자동 번역 직전에 한 번 묻는다 ----
+// ---- 미성년 의심 — 시작할 때 한 번만 묻는다 ----
+//
+// 원클릭은 눌러 놓고 자러 가는 것이다. 그래서 「시작」 을 누르는 순간에만
+// 묻는다(`시작전점검`). 번역 화면에 남는 것은 「받아쓰기만」 으로 정한
+// 작품의 알림과 「이제 번역」 단추뿐이다.
 let 지금미성년 = null;
 
 function 미성년멈춤그리기(근거) {
@@ -3021,29 +3030,15 @@ function 미성년멈춤그리기(근거) {
   if (!칸) return;
   지금미성년 = 근거;
   칸.hidden = !근거;
-  // 들을 줄이 있는 칸이 둘 다 사라졌으면 듣던 것도 멈춘다
   if (!근거 && !지금단서) 단서소리멈춤(false);
   if (!근거) return;
-  const 태그칸 = $("minor-tags");
-  const 태그 = 근거.tags || [];
-  태그칸.hidden = !태그.length;
-  태그칸.textContent = 태그.length
-    ? "판매처가 붙인 태그: " + 태그.map((t) => `${t.term}(${t.gloss})`).join(", ")
-    : "";
-  $("minor-sum").textContent = 근거.count
-    ? `대사에서 걸린 줄 ${근거.count}개` + (근거.count > (근거.lines || []).length
-      ? ` — 앞의 ${(근거.lines || []).length}줄만 보여 드립니다` : "")
-    : "";
-  미성년목록그리기();
   const 단추 = $("minor-go");
-  if (단추.dataset.arm !== "1") 단추.textContent = "그래도 번역";
+  if (단추.dataset.arm !== "1") 단추.textContent = "이제 번역";
 }
 
 function 미성년목록그리기() {
-  const 목록 = $("minor-list");
-  if (!목록 || !지금미성년) return;
-  목록.innerHTML = "";
-  (지금미성년.lines || []).forEach((줄) => 목록.appendChild(단서줄(줄)));
+  // 시작 전 확인 칸의 근거 줄도 ▶ 를 쓴다. 듣는 줄이 바뀌면 다시 그린다
+  시작확인그리기();
 }
 
 // **되돌릴 수 없는 일이다** — 한 번 보내면 그 글은 나간 것이다. 그래서 두 번
@@ -3056,7 +3051,7 @@ async function 미성년그래도() {
     setTimeout(() => {
       if (단추.dataset.arm !== "1") return;
       단추.dataset.arm = "";
-      단추.textContent = "그래도 번역";
+      단추.textContent = "이제 번역";
     }, 4000);
     return;
   }
@@ -3065,9 +3060,102 @@ async function 미성년그래도() {
   단추.innerHTML = '<span class="spin"></span>번역을 시작하는 중…';
   const 결과 = await api().minor_go();
   단추.disabled = false;
-  단추.textContent = "그래도 번역";
+  단추.textContent = "이제 번역";
   알림(결과.message, 결과.ok ? "ok" : "bad");
   await 번역칸그리기();
+}
+
+// ---- 시작 전 확인 ----
+
+// `{시작, 작품들, 고른것: {열쇠: "번역" | "받아쓰기"}}`. 다시 그려도 남아야 한다
+let 시작대기 = null;
+
+/** 「시작」 류 단추가 부른다. 물을 작품이 없으면 곧바로 시작한다. */
+async function 시작전점검(시작, 트랙들 = null) {
+  const 점검 = await api().minor_precheck(트랙들);
+  const 작품들 = (점검 && 점검.works) || [];
+  if (!작품들.length) { await 시작(); return; }
+  // 기본은 「받아쓰기만」 이다. 모르는 사이에 번역돼 나가는 일이 없게 —
+  // 성인 작품이 맞으면 「번역까지」 로 바꾸면 된다
+  시작대기 = { 시작, 작품들, 고른것: Object.fromEntries(작품들.map((w) => [w.key, "받아쓰기"])) };
+  시작확인그리기();
+  // **누른 자리에서 반응이 보여야 한다**(규칙 2). 전체 시작 단추는 왼쪽에
+  // 있으므로 확인 칸을 화면으로 끌어온다
+  const 칸 = $("pre-minor");
+  if (칸 && 칸.scrollIntoView) 칸.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
+function 시작확인그리기() {
+  const 칸 = $("pre-minor");
+  if (!칸) return;
+  칸.hidden = !시작대기;
+  if (!시작대기) return;
+  const 목록 = $("pre-minor-list");
+  목록.innerHTML = "";
+  시작대기.작품들.forEach((w) => {
+    const 작품 = document.createElement("div");
+    작품.className = "pre-work";
+
+    const 머리 = document.createElement("div");
+    머리.className = "pre-head";
+    const 이름 = document.createElement("b");
+    이름.textContent = w.title || w.key;
+    머리.appendChild(이름);
+
+    // 작품마다 고른다. **고른 것이 늘 보인다**(규칙 5)
+    const 고르개 = document.createElement("span");
+    고르개.className = "pre-pick";
+    [["번역", "번역까지"], ["받아쓰기", "받아쓰기만"]].forEach(([값, 글]) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ghost small" + (시작대기.고른것[w.key] === 값 ? " on" : "");
+      b.textContent = 글;
+      b.onclick = () => { 시작대기.고른것[w.key] = 값; 시작확인그리기(); };
+      고르개.appendChild(b);
+    });
+    머리.appendChild(고르개);
+    작품.appendChild(머리);
+
+    const 근거 = [];
+    if ((w.tags || []).length) {
+      근거.push("판매처가 붙인 태그: " + w.tags.map((t) => `${t.term}(${t.gloss})`).join(", "));
+    }
+    if ((w.title_hits || []).length) {
+      근거.push("제목에: " + w.title_hits.map((t) => `${t.term}(${t.gloss})`).join(", "));
+    }
+    if (w.count) {
+      근거.push(`받아쓴 대사에서 걸린 줄 ${w.count}개`
+        + (w.count > (w.lines || []).length ? ` — 앞의 ${(w.lines || []).length}줄만 보여 드립니다` : ""));
+    }
+    근거.forEach((말) => {
+      const d = document.createElement("div");
+      d.className = "clue-note";
+      d.textContent = 말;
+      작품.appendChild(d);
+    });
+    (w.lines || []).forEach((줄) => 작품.appendChild(단서줄(줄)));
+    목록.appendChild(작품);
+  });
+}
+
+async function 시작확인() {
+  if (!시작대기) return;
+  const { 시작, 고른것 } = 시작대기;
+  const 단추 = $("pre-minor-go");
+  단추.disabled = true;
+  단추.innerHTML = '<span class="spin"></span>시작하는 중…';
+  await api().minor_decide(고른것);
+  시작대기 = null;
+  시작확인그리기();
+  단추.disabled = false;
+  단추.textContent = "이대로 시작";
+  await 시작();
+}
+
+function 시작취소() {
+  시작대기 = null;
+  시작확인그리기();
+  알림("시작하지 않았습니다", "ok");
 }
 
 function 단서목록그리기() {
@@ -5165,7 +5253,12 @@ function 묶기() {
   $("to-settings").onclick = () => 보이기("settings");
   $("pick").onclick = (ev) => { ev.stopPropagation(); 파일고르기(); };
   $("drop").onclick = 파일고르기;
-  $("start").onclick = 안전하게(async () => { 마지막상태 = await api().start(); 작업그리기(); }, "시작하지 못했습니다");
+  // 시작 단추는 전부 `시작전점검` 을 지난다 — 미성년 의심 작품은 **시작할 때만** 묻는다
+  $("start").onclick = 안전하게(() => 시작전점검(async () => {
+    마지막상태 = await api().start(); 작업그리기();
+  }), "시작하지 못했습니다");
+  $("pre-minor-go").onclick = 안전하게(시작확인, "시작하지 못했습니다");
+  $("pre-minor-cancel").onclick = 시작취소;
   $("stop").onclick = 안전하게(
     () => 되돌릴수있게(() => api().stop(), "멈추는 중입니다"), "멈추지 못했습니다");
   // 되돌릴 수 없는 단추라 한 번 더 묻는다. 멈추기 바로 밑이라 오눌리기 쉽다

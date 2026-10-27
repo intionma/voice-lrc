@@ -1368,3 +1368,11 @@ button.small { padding: 6px 14px; font-size: var(--t-body); }
    (「봐야 할 것」). 빨강은 망가짐·실패라서 쓰지 않는다 — 막은 것이 아니다 */
 .clues.minor { box-shadow: inset 3px 0 0 var(--warn); }
 #minor-go[data-arm="1"] { color: var(--text); border-color: var(--warn); }
+
+/* 시작 전 확인 — 작품마다 「번역까지 / 받아쓰기만」. 고른 쪽이 늘 보인다 */
+#pre-minor { margin-bottom: 10px; }
+.pre-work { border-top: 1px solid var(--line); padding: 8px 0 4px; display: flex; flex-direction: column; gap: 4px; }
+.pre-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.pre-head b { margin-right: auto; color: var(--text); font-size: var(--t-body); }
+.pre-pick { display: inline-flex; gap: 4px; }
+.pre-pick .ghost.on { color: var(--text); border-color: var(--accent); background: var(--accent-soft); }

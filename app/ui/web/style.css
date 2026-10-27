@@ -1313,3 +1313,53 @@ button.small { padding: 6px 14px; font-size: var(--t-body); }
   border-radius: var(--r-2);
   background: rgba(0, 0, 0, 0.25);
 }
+
+/* 거절 단서 — 복붙 카드 안, 「왜 넘어왔나」 바로 밑.
+   **이유가 아니라 단서다.** 색은 단계를 따른다: 낮은 단계는 흐리게, 4·5 는
+   빨갛게. 5단계(미성년 의심)만 테두리를 두껍게 해서 섞여도 눈에 띄게 한다 */
+.clues {
+  border: 1px solid var(--line); border-radius: var(--r-2); padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 8px; flex-shrink: 0;
+}
+.clue-head { display: flex; flex-direction: column; gap: 2px; font-size: var(--t-body); }
+.clue-head .cat { color: var(--text); font-weight: var(--w-bold); }
+.clue-head .sub { color: var(--muted); }
+.clue-verdict { color: var(--text); font-weight: var(--w-bold); font-size: var(--t-body); }
+.clue-caveat { color: var(--muted); font-size: var(--t-small); }
+.clue-list {
+  display: flex; flex-direction: column; gap: 2px;
+  max-height: 260px; overflow: auto; min-height: 0;
+}
+.clue-row {
+  display: flex; align-items: flex-start; gap: 8px; padding: 5px 6px;
+  border-radius: var(--r-2); font-size: var(--t-dense);
+}
+.clue-row:hover { background: var(--panel-2); }
+.clue-row.culprit { box-shadow: inset 3px 0 0 var(--bad); }
+.clue-row.playing { background: var(--accent-soft); }
+.clue-row .play {
+  width: 24px; height: 24px; flex: 0 0 auto;
+  border-radius: 50%; border: 1px solid var(--line);
+  background: none; color: var(--accent);
+  font-size: var(--t-micro); line-height: 1; cursor: pointer;
+}
+.clue-row .play:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.clue-row.playing .play { background: var(--accent); border-color: var(--accent); color: #fff; }
+.clue-row .n { color: var(--faint); font-family: var(--mono); min-width: 5.5em; flex: 0 0 auto; }
+.clue-row .body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.clue-row .ja { color: var(--text); word-break: break-all; }
+.clue-row .tags { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--muted); font-size: var(--t-small); }
+.clue-row mark { background: none; color: inherit; border-bottom: 2px solid var(--faint); }
+.clue-row mark.lv3 { border-bottom-color: var(--warn); background: var(--warn-soft); }
+.clue-row mark.lv4 { border-bottom-color: var(--bad); background: var(--bad-soft); }
+.clue-row mark.lv5 { border-bottom: 3px solid var(--bad); background: var(--bad-soft); }
+/* 소리로만 닿은 것 — AI 가 본 글은 멀쩡하다. 점선으로 약하게 */
+.clue-row mark.snd { border-bottom: 2px dotted var(--muted); background: none; }
+.clue-row .snd { color: var(--muted); }
+.clue-row .lv { font-weight: var(--w-bold); }
+.clue-row .lv.l3 { color: var(--warn); }
+.clue-row .lv.l4, .clue-row .lv.l5 { color: var(--bad-text); }
+.clue-row .why { color: var(--warn); }
+.clue-narrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.clue-note { color: var(--muted); font-size: var(--t-small); }
+#narrow[data-arm="1"] { color: var(--text); border-color: var(--warn); }

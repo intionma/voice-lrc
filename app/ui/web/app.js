@@ -2856,6 +2856,7 @@ async function 번역칸그리기() {
   // 사유가 이미 「AI 가 이 묶음을 거절했습니다」 라고 말한다. 앞에 「자동 번역이
   // 이 묶음을 넘겼습니다:」 를 붙이면 같은 말이 두 번이다
   if (것.reason) 사유칸.textContent = 것.reason;
+  단서그리기(것.clues || null);
   // 몇 번 묶음을 복사하는지 밝혀 둔다. 창을 여럿 열어 놓고 오가면
   // 지금 손에 든 것이 몇 번인지 헷갈린다
   $("send-count").textContent = 것.total > 1
@@ -2945,6 +2946,289 @@ function 묶음목록그리기(것) {
     }, "그 묶음을 열지 못했습니다");
     자리.appendChild(b);
   });
+}
+
+// ---- 거절 단서 ----
+//
+// AI 는 왜 막았는지 말해 주지 않는다. 사용자는 전사 오류로 막힌 건지 진짜
+// 위험한 말 때문인지 모른 채 같은 묶음을 붙잡고 화를 낸다. 그래서 걸릴 만한
+// 자리를 **줄 번호 · 칠한 부분 · 한국어 뜻 · 위험도 급**으로 짚는다.
+//
+// **이유가 아니라 단서다.** 「때문에」 는 창구가 좁히기로 확인했을 때만
+// `verdict` 에 실어 보낸다. 화면은 그 말을 지어내지 않는다.
+//
+// 화면은 0.6초마다 다시 그린다. 듣는 중인 줄과 좁히는 중인 것은 화면 밖
+// 변수에 들고 있어야 다시 그려도 살아남는다.
+let 지금단서 = null;
+let 단서소리 = null;
+let 단서나는줄 = "";
+let 좁히기시계 = null;
+let 좁히는중 = null;
+
+function 단서그리기(단서) {
+  const 칸 = $("refusal-clues");
+  if (!칸) return;
+  지금단서 = 단서;
+  칸.hidden = !단서;
+  if (!단서) { 단서소리멈춤(false); return; }
+
+  const 머리 = $("clue-head");
+  머리.innerHTML = "";
+  (단서.head || []).forEach((말) => {
+    const d = document.createElement("div");
+    // AI 가 직접 붙인 분류가 맨 위다. 우리 단서보다 무겁다
+    d.className = 말.startsWith("AI 가 붙인") ? "cat" : "sub";
+    d.textContent = 말;
+    머리.appendChild(d);
+  });
+  const 요약 = document.createElement("div");
+  요약.className = "sub";
+  요약.textContent = (단서.lines || []).length
+    ? `걸릴 만한 줄 ${단서.lines.length}개 (이 묶음 ${단서.count}줄 중)`
+    : `이 묶음 ${단서.count}줄에서 걸릴 만한 말을 찾지 못했습니다.`;
+  머리.appendChild(요약);
+  // 소리 비교 부품이 없으면 그 갈래가 빠졌다는 것을 말해 둔다. 말없이 빠지면
+  // 「소리가 같은 말」 이 없는 줄 안다
+  if (단서.sound === false) {
+    const 빠짐 = document.createElement("div");
+    빠짐.className = "sub";
+    빠짐.textContent = "소리 비교 부품이 없어 소리가 같은 말은 찾지 못했습니다 — 업데이트하면 깔립니다.";
+    머리.appendChild(빠짐);
+  }
+
+  const 판정 = $("clue-verdict");
+  판정.hidden = !단서.verdict;
+  판정.textContent = 단서.verdict || "";
+  const 단 = $("clue-caveat");
+  단.hidden = !단서.caveat;
+  단.textContent = 단서.caveat || "";
+
+  단서목록그리기();
+  좁히기단추그리기();
+}
+
+// 다 그리면 600줄짜리가 통째로 늘어선다. 앞의 것만 그리고 몇 줄 더 있는지 적는다
+const 단서보일수 = 150;
+
+function 단서목록그리기() {
+  const 목록 = $("clue-list");
+  if (!목록 || !지금단서) return;
+  목록.innerHTML = "";
+  const 줄들 = 지금단서.lines || [];
+  줄들.slice(0, 단서보일수).forEach((줄) => 목록.appendChild(단서줄(줄)));
+  if (줄들.length > 단서보일수) {
+    const 더 = document.createElement("div");
+    더.className = "clue-note";
+    더.textContent = `… 위험도가 낮은 ${줄들.length - 단서보일수}줄은 줄였습니다`;
+    목록.appendChild(더);
+  }
+}
+
+function 단서줄(줄) {
+  const 열쇠 = `${줄.track}:${줄.index}`;
+  const row = document.createElement("div");
+  row.className = "clue-row"
+    + (줄.culprit ? " culprit" : "")
+    + (단서나는줄 === 열쇠 ? " playing" : "");
+
+  // 들어 보기. 잘못 받아적은 말이 걸린 것인지는 귀로만 가릴 수 있다
+  if (줄.track >= 0) {
+    const 듣기 = document.createElement("button");
+    듣기.type = "button";
+    듣기.className = "play";
+    듣기.textContent = 단서나는줄 === 열쇠 ? "■" : "▶";
+    듣기.title = `이 줄만 들어 보기 — 잘못 받아적었는지 확인 (${줄.track_title} · ${줄.at})`;
+    듣기.onclick = 안전하게(() => 단서듣기(줄), "소리를 꺼내지 못했습니다");
+    row.appendChild(듣기);
+  }
+
+  const n = document.createElement("span");
+  n.className = "n";
+  n.textContent = `${줄.index} 줄`;
+  n.title = `${줄.track_title} · ${줄.at}`;
+  row.appendChild(n);
+
+  const 몸 = document.createElement("div");
+  몸.className = "body";
+  const ja = document.createElement("div");
+  ja.className = "ja";
+  // 걸린 자리만 칠한다. 겹치지 않게 창구가 골라서 준다
+  let 자리 = 0;
+  const 글 = 줄.ja || "";
+  [...(줄.hits || [])].sort((a, b) => a.start - b.start).forEach((h) => {
+    if (h.start < 자리) return;
+    ja.appendChild(document.createTextNode(글.slice(자리, h.start)));
+    const m = document.createElement("mark");
+    // 소리로만 닿은 것은 점선으로 약하게. AI 가 본 글은 멀쩡하다
+    m.className = 글로찾음(h) ? `lv${h.level}` : "snd";
+    m.textContent = 글.slice(h.start, h.end);
+    m.title = `${h.gloss} · 위험도 ${h.grade}급 — ${h.level_name}`;
+    ja.appendChild(m);
+    자리 = h.end;
+  });
+  ja.appendChild(document.createTextNode(글.slice(자리)));
+  몸.appendChild(ja);
+
+  const 딱지 = document.createElement("div");
+  딱지.className = "tags";
+  const 붙이기 = (글자, 꼴) => {
+    const t = document.createElement("span");
+    if (꼴) t.className = 꼴;
+    t.textContent = 글자;
+    딱지.appendChild(t);
+  };
+  if (줄.culprit) 붙이기("이 줄에서 막힘 — 좁히기로 확인", "why");
+  (줄.hits || []).forEach((h) => 붙이기(걸린말(h), 글로찾음(h) ? `lv l${h.level}` : "snd"));
+  if (줄.unsure) 붙이기("받아쓰기가 자신 없음 — 잘못 받아적었을 수 있습니다", "why");
+  if (줄.broken) 붙이기(`망가진 줄(${줄.broken}) — 잘못 받아적었을 수 있습니다`, "why");
+  (줄.learned || []).forEach((b) => 붙이기(
+    `전에 「${b.wrong}」 를 「${b.right}」 로 고친 적 있음 (${b.count}번) — 같은 실수일 수 있습니다`,
+    "why"));
+  몸.appendChild(딱지);
+  row.appendChild(몸);
+  return row;
+}
+
+// 그대로·표기는 AI 가 본 글에 그 말이 있다. 소리·비슷한소리는 AI 가 본 글은
+// 멀쩡하고, 받아쓰기가 틀렸을 수 있다는 단서다
+function 글로찾음(h) { return h.kind === "그대로" || h.kind === "표기"; }
+
+// 딱지 한 줄. 「4단계」 는 우리만 아는 말이라 화면에는 위험도 급과 그 뜻을
+// 같이 쓴다. 1급이 가장 세다
+function 걸린말(h) {
+  const 급 = `위험도 ${h.grade}급 · ${h.level_name}`;
+  let 말;
+  if (h.kind === "소리" || h.kind === "비슷한소리") {
+    // 조사를 안 쓴다. 뜻 끝 글자에 따라 「와/과」 가 갈려서 늘 어딘가 틀린다
+    말 = `「${h.written}」 — 소리로는 「${h.term}」(${h.gloss}) · `
+      + (h.kind === "소리" ? "똑같은 소리" : "한 소리만 다름")
+      + ` · ${급} · AI 가 본 글은 멀쩡함, 잘못 받아적었을 수 있음`;
+  } else if (h.kind === "표기" && h.written !== h.term) {
+    말 = `「${h.written}」 = 「${h.term}」(${h.gloss})의 다른 표기 · ${급}`;
+  } else {
+    말 = `「${h.term}」(${h.gloss}) · ${급}`;
+  }
+  if (h.masked) 말 += " · 가려서 보냄 (AI 는 이 말을 못 봄)";
+  const 같음 = (h.pairs || []).filter((x) => x.same);
+  const 비슷 = (h.pairs || []).filter((x) => !x.same);
+  const 늘어놓기 = (것들) => 것들.map((x) => `${x.word}(${x.gloss})`).join(", ");
+  if (같음.length) 말 += ` · 소리가 같은 딴 말: ${늘어놓기(같음)}`;
+  if (비슷.length) 말 += ` · 소리가 비슷한 딴 말: ${늘어놓기(비슷)}`;
+  if (같음.length || 비슷.length) 말 += " — 잘못 들었을 수 있음";
+  return 말;
+}
+
+function 단서소리멈춤(다시그리기 = true) {
+  if (단서소리) {
+    try { 단서소리.pause(); } catch (e) { /* 이미 멈춘 것 */ }
+  }
+  단서소리 = null;
+  const 있었다 = 단서나는줄;
+  단서나는줄 = "";
+  if (있었다 && 다시그리기) 단서목록그리기();
+}
+
+async function 단서듣기(줄) {
+  const 열쇠 = `${줄.track}:${줄.index}`;
+  if (단서나는줄 === 열쇠) { 단서소리멈춤(); return; }
+  단서소리멈춤(false);
+  // 검수 창에서 듣던 것이 있으면 멈춘다. 두 소리가 겹치면 아무것도 안 들린다
+  소리멈춤();
+  // **누르자마자** ■ 로 바꾼다. 소리를 꺼내는 사이 아무 반응이 없으면 또 누른다
+  단서나는줄 = 열쇠;
+  단서목록그리기();
+  const 것 = await api().play_clip(줄.track, 줄.start, 줄.end);
+  if (단서나는줄 !== 열쇠) return;      // 그사이 딴 줄을 눌렀다
+  if (!것.ok) {
+    단서나는줄 = "";
+    단서목록그리기();
+    알림(것.message || "소리를 꺼내지 못했습니다", "bad");
+    return;
+  }
+  const 소리하나 = new Audio(것.audio);
+  단서소리 = 소리하나;
+  const 자리잡기 = () => {
+    try { 소리하나.currentTime = 것.offset || 0; } catch (e) { /* 못 잡으면 처음부터 */ }
+  };
+  소리하나.addEventListener("loadedmetadata", 자리잡기, { once: true });
+  소리하나.addEventListener("ended", () => { if (단서소리 === 소리하나) 단서소리멈춤(); });
+  await 소리하나.play();
+}
+
+// 좁히기. **크레딧이 든다.** 그래서 두 번 눌러야 시작하고(되돌릴 수 없는 일),
+// 도는 동안 「그만두기」 가 있다(규칙 4).
+function 좁히기단추그리기() {
+  const 단추 = $("narrow");
+  const 그만 = $("narrow-stop");
+  const 말 = $("narrow-note");
+  if (!단추 || !지금단서) return;
+  if (좁히는중 && !좁히는중.finished) {
+    단추.hidden = false;
+    단추.disabled = true;
+    단추.innerHTML = '<span class="spin"></span>좁히는 중…';
+    그만.hidden = false;
+    말.textContent = 좁히는중.message || "";
+    return;
+  }
+  그만.hidden = true;
+  단추.disabled = false;
+  if (단추.dataset.arm !== "1") 단추.textContent = 지금단서.narrowed ? "다시 좁히기" : "좁히기";
+  단추.hidden = !지금단서.can_narrow;
+  말.textContent = 지금단서.can_narrow
+    ? `반씩 나눠 다시 보내 어느 줄에서 막히는지 찾습니다 · 최대 ${지금단서.narrow_calls}번쯤 더 보냄 · 크레딧이 듭니다 · 지나간 줄은 번역해 넣습니다`
+    : (지금단서.narrow_note || "");
+}
+
+async function 좁히기누름() {
+  const 단추 = $("narrow");
+  if (단추.dataset.arm !== "1") {
+    단추.dataset.arm = "1";
+    단추.textContent = "한 번 더 누르면 보냅니다";
+    setTimeout(() => {
+      if (단추.dataset.arm !== "1") return;
+      단추.dataset.arm = "";
+      좁히기단추그리기();
+    }, 4000);
+    return;
+  }
+  단추.dataset.arm = "";
+  좁히는중 = { finished: false, message: "시작하는 중…" };
+  좁히기단추그리기();
+  const 결과 = await api().narrow_batch(지금묶음.번호);
+  if (!결과.ok) {
+    좁히는중 = null;
+    좁히기단추그리기();
+    알림(결과.message, "bad");
+    return;
+  }
+  좁히기지켜보기();
+}
+
+function 좁히기지켜보기() {
+  if (좁히기시계) return;
+  const 물어보기 = 안전하게(async () => {
+    const 것 = await api().narrow_progress();
+    좁히는중 = 것;
+    좁히기단추그리기();
+    if (!것.finished) return;
+    clearInterval(좁히기시계);
+    좁히기시계 = null;
+    좁히는중 = null;
+    알림(것.message, 것.ok ? "ok" : "bad");
+    await 번역칸그리기();
+  });
+  좁히기시계 = setInterval(물어보기, 600);
+  물어보기();
+}
+
+async function 좁히기그만() {
+  const 그만 = $("narrow-stop");
+  그만.disabled = true;
+  그만.textContent = "그만두는 중…";
+  const 결과 = await api().narrow_stop();
+  if (좁히는중) 좁히는중.message = 결과.message;
+  좁히기단추그리기();
+  setTimeout(() => { 그만.disabled = false; 그만.textContent = "그만두기"; }, 1500);
 }
 
 // 남은 묶음을 한 번에 파일로 내보낸다.
@@ -4866,6 +5150,8 @@ function 묶기() {
   $("submit-review").onclick = 안전하게(검수넣기, "검수 답을 넣지 못했습니다");
   $("local-now").onclick = 안전하게(() => 내컴퓨터로번역(false), "내 컴퓨터 AI로 번역하지 못했습니다");
   $("save-file").onclick = 파일로저장;
+  $("narrow").onclick = 안전하게(좁히기누름, "좁히지 못했습니다");
+  $("narrow-stop").onclick = 안전하게(좁히기그만, "그만두지 못했습니다");
   $("copy-all").onclick = 안전하게(전부파일로, "묶음을 내보내지 못했습니다");
   $("submit").onclick = 안전하게(넣기, "넣지 못했습니다");
   $("skip").onclick = 안전하게(async () => { await api().skip(); await 새로고침(); 번역칸그리기(); }, "건너뛰지 못했습니다");

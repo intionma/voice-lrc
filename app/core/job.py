@@ -1249,30 +1249,10 @@ class Pipeline:
         if group.session is None or group.done:
             return group
 
-        chosen = route.정해진값(self.settings)["보내는길"]
-        if chosen == "manual":
+        provider = self.자동공급자()
+        if provider is None:
             return group
-
-        if providers.is_local(chosen):
-            # 내 컴퓨터에서 도는 번역 모델은 받아쓰기와 같은 그래픽카드를 쓴다.
-            # 12GB 에 둘 다 올리면 터진다. 받아쓰기 쪽을 먼저 내린다
-            self.release_model()
-
-        # 주소와 모델 이름은 **내 컴퓨터에서 도는 것에만** 쓴다.
-        #
-        # 화면에서 그 둘은 로컬 공급자를 골랐을 때만 입력할 수 있는데, 설정은
-        # 덮어쓰기가 아니라 겹쳐 쌓기라 한 번 넣은 값이 그대로 남는다. 그래서
-        # Ollama 를 쓰다 Groq 으로 바꾸면 Groq 이 `localhost:11434` 로 불렸다.
-        # 고른 곳은 불려 본 적도 없고, Groq 키가 내 컴퓨터로 날아갔다.
-        # Gemini 로 바꾸면 모델 이름이 `qwen2.5:14b` 인 채로 불려 404 가 났다.
-        번역설정 = self.settings.get("translation", {})
-        내컴퓨터 = providers.is_local(chosen)
-        provider = providers.create(
-            chosen,
-            api_key=settings_store.api_key(self.settings, chosen),
-            model=providers.고른모델(chosen, self.settings),
-            url=str(번역설정.get("url") or "") if 내컴퓨터 else "",
-        )
+        내컴퓨터 = providers.is_local(route.정해진값(self.settings)["보내는길"])
 
         def 진행(update) -> None:
             for job in group.jobs:
@@ -1290,6 +1270,39 @@ class Pipeline:
                 provider.unload()
                 log.write("번역", "로컬 모델 내림", 모델=provider.model)
         return group
+
+    def 자동공급자(self):
+        """설정에서 고른 자동 번역 공급자. 복붙이면 None.
+
+        자동 번역과 「좁히기」 가 같이 쓴다. 둘이 따로 만들면 한쪽만 엉뚱한
+        주소나 모델로 불린다.
+        """
+        from app.core import providers
+
+        chosen = route.정해진값(self.settings)["보내는길"]
+        if chosen == "manual":
+            return None
+
+        if providers.is_local(chosen):
+            # 내 컴퓨터에서 도는 번역 모델은 받아쓰기와 같은 그래픽카드를 쓴다.
+            # 12GB 에 둘 다 올리면 터진다. 받아쓰기 쪽을 먼저 내린다
+            self.release_model()
+
+        # 주소와 모델 이름은 **내 컴퓨터에서 도는 것에만** 쓴다.
+        #
+        # 화면에서 그 둘은 로컬 공급자를 골랐을 때만 입력할 수 있는데, 설정은
+        # 덮어쓰기가 아니라 겹쳐 쌓기라 한 번 넣은 값이 그대로 남는다. 그래서
+        # Ollama 를 쓰다 Groq 으로 바꾸면 Groq 이 `localhost:11434` 로 불렸다.
+        # 고른 곳은 불려 본 적도 없고, Groq 키가 내 컴퓨터로 날아갔다.
+        # Gemini 로 바꾸면 모델 이름이 `qwen2.5:14b` 인 채로 불려 404 가 났다.
+        번역설정 = self.settings.get("translation", {})
+        내컴퓨터 = providers.is_local(chosen)
+        return providers.create(
+            chosen,
+            api_key=settings_store.api_key(self.settings, chosen),
+            model=providers.고른모델(chosen, self.settings),
+            url=str(번역설정.get("url") or "") if 내컴퓨터 else "",
+        )
 
     # ---- 자막 ----
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable
 
-from app.core import wordbook
+from app.core import refusal_terms, wordbook
 from app.core.exchange import (
     BATCH_CHARS,
     BATCH_LINES,
@@ -33,6 +33,13 @@ from app.core.providers import Provider, ProviderError, RateLimited, Refused
 
 # 빠진 줄을 몇 번까지 다시 물어볼지. 이보다 많이 하면 사용자만 기다린다
 MAX_RETRIES = 2
+
+# 「좁히기」 가 한 묶음에 몇 번까지 더 보낼지. **크레딧이 나간다.**
+#
+# 막힌 줄이 하나면 반씩 쪼개 가며 두 번씩 보내므로, 600줄 묶음도 스무 번
+# 안쪽에서 한 줄까지 내려간다. 보내는 줄 수를 다 더하면 묶음 두 벌쯤이고,
+# 통과한 쪽은 번역이 그대로 담기니 버려지는 몫은 한 벌 남짓이다
+좁히기최대 = 20
 
 
 def _물어보기(
@@ -75,6 +82,17 @@ class Handoff:
 
     batch: Batch
     reason: str
+    # ---- 거절일 때만 ----
+    # 내용 때문에 거절당했나. 한도·서버 오류와 가른다 — 단서는 거절에만 뜻이 있다
+    refused: bool = False
+    # AI 가 붙여 준 거절 분류. **AI 가 직접 말해 준 유일한 까닭**이라 맨 위에 띄운다
+    category: str | None = None
+    # 한 번 그대로 다시 보냈는데 또 막혔나
+    resent: bool = False
+    # 미성년 의심이라 **다시 보내지 않았다.** 좁히기도 안 한다
+    minor: bool = False
+    # 「좁히기」 결과. 안 했으면 None
+    narrowed: dict[str, Any] | None = None
 
 
 @dataclass
@@ -138,6 +156,8 @@ class TranslationSession:
     # 안전한 길이다
     가린번역: dict[int, str] = field(default_factory=dict, repr=False)
     handoffs: list[Handoff] = field(default_factory=list)
+    # 거절당했다가 **그대로 다시 보내니 지나간** 묶음 번호. 우연히 막혔던 것이다
+    우연히통과: list[int] = field(default_factory=list)
     _batches: list[Batch] = field(default_factory=list, repr=False)
     _auto_done: set[int] = field(default_factory=set, repr=False)
     # 사람이 손으로 끝낸(또는 지나친) 묶음 번호.
@@ -371,7 +391,7 @@ class TranslationSession:
                 self._translate_one(provider, batch)
                 self._auto_done.add(batch.number)
             except Refused as error:
-                self._hand_off(batch, str(error) or "내용 때문에 거절당했습니다.")
+                self._거절됨(provider, batch, error)
             except RateLimited as error:
                 # 한도는 기다리면 풀리지만 사용자를 세워 두는 것보다 넘기는 편이 낫다
                 self._hand_off(batch, str(error))
@@ -379,6 +399,138 @@ class TranslationSession:
                 self._hand_off(batch, str(error))
 
         _report(on_progress, self.progress("자동 번역 끝"))
+
+    def _원문들(self, batch: Batch) -> list[str]:
+        """가리기 전 일본어. 묶음에는 가린 글이 들어 있다."""
+        return [str(줄.get("ja_raw", 줄.get("ja", ""))) for 줄 in batch.segments]
+
+    def _거절됨(self, provider: Provider, batch: Batch, error: Refused) -> None:
+        """거절당했다. **한 번만 그대로** 다시 보내 보고, 또 막히면 넘긴다.
+
+        같은 글이 한 번은 막히고 한 번은 지나가는 일이 흔하다. 다시 보내서
+        지나가면 그 거절은 우연이었다 — 사용자를 붙잡을 까닭이 없다.
+
+        **미성년 의심 묶음은 다시 보내지 않는다.** 막힌 것을 거듭 밀어 넣는
+        일이 되고, 거듭 막히면 계정이 위험해진다. ⚠ 와 같은 규칙으로 본다
+        (`refusal_terms.미성년의심`).
+
+        보내는 글은 처음과 **똑같다.** 고쳐 쓰거나 더 가리지 않는다.
+        """
+        def 넘기기(오류: Refused, *, resent: bool, minor: bool) -> None:
+            self._hand_off(batch, str(오류) or "내용 때문에 거절당했습니다.")
+            넘긴것 = next(h for h in self.handoffs if h.batch.number == batch.number)
+            넘긴것.refused = True
+            넘긴것.category = getattr(오류, "category", None)
+            넘긴것.resent = resent
+            넘긴것.minor = minor
+
+        if refusal_terms.미성년의심(self._원문들(batch)):
+            넘기기(error, resent=False, minor=True)
+            return
+        try:
+            self._translate_one(provider, batch)
+        except Refused as again:
+            넘기기(again, resent=True, minor=False)
+            return
+        except ProviderError:
+            # 다시 보내다 한도나 서버 오류가 났다. 처음 까닭은 거절이었다
+            넘기기(error, resent=False, minor=False)
+            return
+        self._auto_done.add(batch.number)
+        self.우연히통과.append(batch.number)
+
+    def 좁히기(
+        self,
+        provider: Provider,
+        number: int,
+        *,
+        최대: int = 좁히기최대,
+        on_progress: Callable[[int, int], None] | None = None,
+        should_stop: Callable[[], bool] | None = None,
+    ) -> dict[str, Any]:
+        """거절당한 묶음을 반씩 나눠 다시 보내서 **막히는 줄**을 찾는다.
+
+        사용자가 단추를 눌렀을 때만 돈다. 크레딧이 들기 때문이다.
+
+        통과한 쪽은 번역이 그대로 담긴다. 끝나면 남은 줄(막힌 줄과 못 좁힌
+        줄)만 복붙 대기줄에 남는다 — 「빠진 줄만 다시 물어보기」 와 같은 자리다.
+
+        보내는 글은 원래 묶음에서 **줄을 덜어 낸 것뿐**이다. 고쳐 쓰지 않는다.
+        미성년 의심 묶음은 하지 않는다.
+        """
+        넘긴것 = next((h for h in self.handoffs if h.batch.number == number), None)
+        if 넘긴것 is None or not 넘긴것.refused:
+            raise ValueError("거절당한 묶음만 좁힐 수 있습니다.")
+        if 넘긴것.minor or refusal_terms.미성년의심(self._원문들(넘긴것.batch)):
+            raise ValueError("미성년 의심 말이 있는 묶음은 좁히지 않습니다.")
+
+        대상 = self._retries.get(number) or 넘긴것.batch
+        남은줄 = [번호 for 번호 in 대상.indices if 번호 not in self.translations]
+        # 통째로는 이미 막혔다. 반으로 나눈 것부터 보낸다
+        덩이들 = ([남은줄[:len(남은줄) // 2], 남은줄[len(남은줄) // 2:]]
+                if len(남은줄) > 1 else [])
+        막힌줄 = list(남은줄) if len(남은줄) == 1 else []
+        못좁힌줄: list[int] = []
+        보낸수 = 0
+        번역한수 = 0
+        오류 = ""
+        while 덩이들:
+            if 보낸수 >= 최대 or (should_stop and should_stop()):
+                for 덩이 in 덩이들:
+                    못좁힌줄.extend(덩이)
+                break
+            덩이 = 덩이들.pop(0)
+            if not 덩이:
+                continue
+            보낸수 += 1
+            if on_progress is not None:
+                on_progress(보낸수, 최대)
+            부분 = self._이어주기(self._부분묶음(대상, 덩이))
+            try:
+                answer = _물어보기(provider, 부분)
+            except Refused:
+                if len(덩이) == 1:
+                    막힌줄.append(덩이[0])
+                else:
+                    반 = len(덩이) // 2
+                    # 깊이 먼저. 막힌 덩이를 끝까지 파고들어야 적은 횟수로 닿는다
+                    덩이들[:0] = [덩이[:반], 덩이[반:]]
+                continue
+            except ProviderError as error:
+                오류 = str(error)
+                못좁힌줄.extend(덩이)
+                for 남 in 덩이들:
+                    못좁힌줄.extend(남)
+                break
+            result = self._recover(answer, 부분.indices, self._absorb(answer, 부분.indices))
+            번역한수 += len(덩이) - len(result.missing)
+
+        안된줄 = [번호 for 번호 in 대상.indices if 번호 not in self.translations]
+        if 안된줄:
+            self._retries[number] = make_retry_batch(대상, 안된줄)
+        else:
+            self._retries.pop(number, None)
+            self._auto_done.add(number)
+        넘긴것.narrowed = {
+            "culprits": sorted(막힌줄),
+            "unresolved": sorted(못좁힌줄),
+            "translated": 번역한수,
+            "calls": 보낸수,
+            "error": 오류,
+        }
+        return 넘긴것.narrowed
+
+    @staticmethod
+    def _부분묶음(대상: Batch, 번호들: list[int]) -> Batch:
+        """`대상` 에서 이 줄들만 덜어 낸 묶음. 머리말은 처음 묶음과 같다."""
+        고른것 = set(번호들)
+        return Batch(
+            number=대상.number,
+            total=대상.total,
+            segments=[줄 for 줄 in 대상.segments if 줄["index"] in 고른것],
+            context=대상.context,
+            앞선것=list(대상.앞선것),
+        )
 
     def run_one(self, provider: Provider) -> bool:
         """지금 물어볼 묶음 **하나만** 자동으로 번역한다. 했으면 True.

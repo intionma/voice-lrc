@@ -33,3 +33,9 @@ pywebview>=5.0
 # Only imported when Claude is the chosen provider, so a folder that has not
 # updated yet still starts.
 anthropic>=2.3,<3
+
+# Reads Japanese as kana so a refused batch can say "this word sounds like
+# that one" (ASR writes homophones: shasei as a drawing word instead of the
+# other one). Pure Python, a few MB of dictionary. Only used after a refusal;
+# if it is missing the clue list just skips the sound-alike branch.
+pykakasi>=2.3,<3

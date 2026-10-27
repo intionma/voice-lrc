@@ -242,6 +242,21 @@
                무관하다. 사유를 모르면 다 같은 벽이다 -->
           <div id="handoff-reason" class="notice" hidden></div>
 
+          <!-- 거절당한 묶음이면 **걸릴 만한 자리.** AI 는 왜 막았는지 말해 주지
+               않는다. 그래서 이유가 아니라 단서다 — 「때문에」 는 좁히기로
+               확인했을 때만 쓴다. 이 목록은 AI 로 안 나간다 -->
+          <div id="refusal-clues" class="clues" hidden>
+            <div id="clue-head" class="clue-head"></div>
+            <div id="clue-verdict" class="clue-verdict" hidden></div>
+            <div id="clue-caveat" class="clue-caveat" hidden></div>
+            <div id="clue-list" class="clue-list"></div>
+            <div class="clue-narrow">
+              <button id="narrow" class="ghost small" type="button">좁히기</button>
+              <button id="narrow-stop" class="ghost small" type="button" hidden>그만두기</button>
+              <span id="narrow-note" class="clue-note"></span>
+            </div>
+          </div>
+
           <!-- 호칭. 「お兄さん → 언니」 는 한 번 틀리면 그 작품 내내 틀린다.
                용어집이 아니라 호칭만 받는다 — 그래야 범위가 안 늘어난다 -->
           <div class="batches" id="names-row" hidden>

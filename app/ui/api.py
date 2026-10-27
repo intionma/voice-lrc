@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from app.core import (
+    asr_fixes,
     clip,
     compare as 견주기,
     dlsite,
@@ -44,6 +45,7 @@ from app.core import (
     names as names_store,
     providers,
     quality,
+    refusal_terms,
     settings as settings_store,
     titles as titles_store,
     wordbook,
@@ -234,6 +236,14 @@ class Controller:
         # **실수로 눌렀을 때 무를 수 있어야 한다.** 내 컴퓨터 AI 번역은
         # 몇 분씩 걸리는데, 시작하면 끝날 때까지 붙잡혀 있었다
         self._local_cancel = threading.Event()
+        # 거절당한 묶음을 「좁히기」 하는 중인지. 크레딧이 들어서 그만둘 수 있어야 한다
+        self._narrow_run: dict[str, Any] = {
+            "busy": False, "done": 0, "total": 0, "message": "",
+            "finished": True, "ok": True, "key": "", "number": 0,
+        }
+        self._narrow_cancel = threading.Event()
+        # 단서는 600줄을 다 훑는다. 화면이 자주 다시 그리므로 같은 것은 담아 둔다
+        self._단서담음: dict[tuple, dict[str, Any]] = {}
         # 일꾼이 쓰는 흐름. 받아쓰기 모델을 내려야 할 때 여기로 부른다
         self._pipeline: Pipeline | None = None
         # 강도를 견주는 중인지. 여기도 칸을 미리 다 만들어 둔다
@@ -1080,15 +1090,26 @@ class Controller:
             # 삼킨다). 여기서 안 말하면 사용자는 「자동을 켰는데 왜 복붙이
             # 남지?」 하고 사유도 모른 채 마주한다
             넘긴것 = group.session.handoffs if group.session else []
+            # 한 번 막혔다가 그대로 다시 보내니 지나간 것. 사용자가 할 일은
+            # 없지만, 크레딧이 두 번 나갔으니 말은 해 둔다
+            우연 = group.session.우연히통과 if group.session else []
+            for 번호 in 우연:
+                log.write("번역", "거절 뒤 다시 보내니 통과", 작품=group.key, 묶음=번호)
+            우연말 = (f"{len(우연)}묶음은 처음에 막혔다가 그대로 다시 보내니 "
+                    "지나갔습니다 — 우연히 막혔던 것 같습니다." if 우연 else "")
             if 넘긴것:
                 사유들 = {h.reason for h in 넘긴것}
                 self.notice = (
                     f"{len(넘긴것)}묶음이 자동으로 안 되어 복붙으로 넘어왔습니다"
                     f" — {' / '.join(sorted(사유들))}"
+                    + (f" · {우연말}" if 우연말 else "")
                 )
                 for h in 넘긴것:
                     log.write("번역", "복붙으로 넘김",
-                              작품=group.key, 묶음=h.batch.number, 사유=h.reason)
+                              작품=group.key, 묶음=h.batch.number, 사유=h.reason,
+                              분류=h.category, 다시보냄=h.resent, 미성년의심=h.minor)
+            elif 우연말:
+                self.notice = 우연말
 
     def _묶음한도(self) -> dict[str, Any]:
         """묶음을 어떻게 짤지 — 한 묶음의 크기와, 낱말을 가릴지.
@@ -1288,6 +1309,8 @@ class Controller:
             "reason": next(
                 (h.reason for h in group.session.handoffs
                  if h.batch.number == batch.number), ""),
+            # 거절이면 **어디가 걸렸을 만한지.** 거절이 아니면 None
+            "clues": self._거절단서(group, batch),
             "title": group.title,
             "files": group.file_count,
             "span": batch.span,
@@ -2837,6 +2860,201 @@ class Controller:
             log.error("내 컴퓨터 AI 상태 확인 실패", error)
             return {**빈것, "remaining": 남은것}
 
+    # ---- 거절당한 묶음 ----
+    #
+    # AI 는 왜 막았는지 말해 주지 않는다. 사용자는 「전사 오류로 막힌 건지,
+    # 진짜 위험한 말이 있어서인지」 를 모른 채 같은 묶음을 붙잡고 화를 낸다.
+    #
+    # 그래서 **걸릴 만한 자리**를 짚어 준다(`refusal_terms`). 단서일 뿐이다 —
+    # 「때문에」 는 좁히기로 확인했을 때만 쓴다.
+
+    def _거절단서(self, group: Group, batch: Any) -> dict[str, Any] | None:
+        """거절당한 묶음이면 단서를 모아 준다. 아니면 None."""
+        if group.session is None:
+            return None
+        넘긴것 = next((h for h in group.session.handoffs
+                     if h.batch.number == batch.number), None)
+        if 넘긴것 is None or not 넘긴것.refused:
+            return None
+        좁힌것 = 넘긴것.narrowed or {}
+        # 길이 바뀌면 좁힐 수 있는지가 바뀐다. 열쇠에 넣어야 옛 답이 안 남는다
+        길 = routes.정해진값(self.settings)["보내는길"]
+        # 검수에서 일본어를 고치면 「전에 고친 적 있음」 이 바뀐다. 그것도 넣는다
+        열쇠 = (group.key, batch.number, tuple(batch.indices),
+              좁힌것.get("calls", -1), 넘긴것.resent, 넘긴것.minor, 길,
+              len(asr_fixes.짝들()))
+        if 열쇠 in self._단서담음:
+            return self._단서담음[열쇠]
+
+        막힌줄 = set(좁힌것.get("culprits") or [])
+        트랙줄: dict[int, dict[int, dict[str, Any]]] = {}
+        줄들 = []
+        for 줄 in batch.segments:
+            번호 = int(줄["index"])
+            주인 = group.owner.get(번호)
+            원래: dict[str, Any] = {}
+            트랙 = -1
+            제목 = ""
+            if 주인 is not None:
+                job, 원래번호 = 주인
+                if id(job) not in 트랙줄:
+                    트랙줄[id(job)] = {int(x["index"]): x for x in job.segments}
+                원래 = 트랙줄[id(job)].get(int(원래번호), {})
+                트랙 = self._job자리(job)
+                제목 = job.audio.stem
+            시작 = float(원래.get("start", 줄.get("start", 0.0)))
+            줄들.append({
+                "index": 번호,
+                "ja": str(줄.get("ja_raw", 줄.get("ja", ""))),
+                "sent": str(줄.get("ja", "")),
+                "avg_logprob": 원래.get("avg_logprob"),
+                "track": 트랙,
+                "track_title": 제목,
+                "start": 시작,
+                "end": float(원래.get("end", 줄.get("end", 시작))),
+                "at": exchange._hms(시작),
+                "culprit": 번호 in 막힌줄,
+            })
+        단서 = refusal_terms.단서(줄들)
+
+        # **AI 가 직접 말해 준 것이 맨 위다.** 우리 단서는 그 밑이다
+        머리 = []
+        if 넘긴것.category:
+            머리.append(f"AI 가 붙인 거절 분류: {넘긴것.category}")
+        if 넘긴것.minor:
+            머리.append("미성년 의심 말이 있어 다시 보내지 않았습니다. 좁히기도 하지 않습니다.")
+        elif 넘긴것.resent:
+            머리.append("한 번 더 그대로 보냈는데 또 막혔습니다 — 우연은 아닌 것 같습니다.")
+
+        판정 = ""
+        if 좁힌것:
+            if 좁힌것.get("culprits"):
+                판정 = (f"{len(좁힌것['culprits'])}줄 때문에 막혔습니다 — "
+                       f"반씩 나눠 {좁힌것['calls']}번 보내 확인했습니다.")
+            elif 좁힌것.get("unresolved"):
+                판정 = (f"다 좁히지 못했습니다. 남은 {len(좁힌것['unresolved'])}줄 "
+                       "안에 막히는 줄이 있습니다.")
+            else:
+                판정 = ("나눠 보내니 모두 지나갔습니다 — 줄끼리 이어 읽힐 때만 "
+                       "막혔거나 우연이었습니다.")
+            if 좁힌것.get("translated"):
+                판정 += f" 지나간 {좁힌것['translated']}줄은 번역해 넣었습니다."
+            if 좁힌것.get("error"):
+                판정 += f" (도중에 멈춤: {좁힌것['error']})"
+
+        남은줄 = len(batch.indices)
+        못좁힘 = ""
+        if 넘긴것.minor or 단서["minor"]:
+            못좁힘 = "미성년 의심 말이 있는 묶음은 좁히지 않습니다."
+        elif 길 == "manual":
+            못좁힘 = "자동 번역이 꺼져 있어 좁힐 수 없습니다. 설정 › 번역에서 API 를 고르면 됩니다."
+        elif 좁힌것.get("culprits") and not 좁힌것.get("unresolved"):
+            못좁힘 = "이미 막히는 줄까지 좁혔습니다."
+        elif 남은줄 < 2:
+            못좁힘 = "한 줄뿐이라 더 좁힐 것이 없습니다."
+
+        난것 = {
+            **단서,
+            "head": 머리,
+            "verdict": 판정,
+            # 「때문에」 를 쓸 증거가 없으면 이 말을 같이 띄운다
+            "caveat": "" if 좁힌것.get("culprits") else (
+                "AI 는 왜 막았는지 알려 주지 않습니다. 아래는 걸릴 만한 단서일 뿐, "
+                "까닭으로 단정할 수 없습니다."),
+            "can_narrow": not 못좁힘,
+            "narrow_note": 못좁힘,
+            # 한 줄까지 내려가는 데 드는 횟수. 막힌 줄이 하나일 때 기준이다
+            "narrow_calls": min(translate_module.좁히기최대,
+                                2 * max(1, (남은줄 - 1).bit_length())),
+            "narrowed": bool(좁힌것),
+        }
+        if len(self._단서담음) > 64:
+            self._단서담음.clear()
+        self._단서담음[열쇠] = 난것
+        return 난것
+
+    def narrow_batch(self, number: int, key: str = "") -> dict[str, Any]:
+        """거절당한 묶음을 반씩 나눠 다시 보내 **막히는 줄**을 찾는다.
+
+        사용자가 단추를 눌렀을 때만 돈다 — 크레딧이 든다. 오래 걸리므로
+        따로 도는 일꾼에게 맡기고 바로 돌려준다. 화면은 `narrow_progress()`
+        로 물어본다.
+        """
+        with self._lock:
+            if self._narrow_run.get("busy"):
+                return {"ok": True, "already": True, "message": "이미 좁히는 중입니다."}
+            group = self._그룹찾기(key) if key else self.current_group()
+            if group is None or group.session is None:
+                return {"ok": False, "message": "그 묶음을 찾지 못했습니다."}
+            넘긴것 = next((h for h in group.session.handoffs
+                         if h.batch.number == int(number)), None)
+            if 넘긴것 is None or not 넘긴것.refused:
+                return {"ok": False, "message": "거절당한 묶음만 좁힐 수 있습니다."}
+            if 넘긴것.minor:
+                return {"ok": False, "message": "미성년 의심 말이 있는 묶음은 좁히지 않습니다."}
+            pipeline = self._pipeline or self._make_pipeline(self.settings)
+            만들기 = getattr(pipeline, "자동공급자", None)
+            provider = 만들기() if callable(만들기) else None
+            if provider is None:
+                return {"ok": False, "message":
+                        "자동 번역이 꺼져 있어 좁힐 수 없습니다. 설정 › 번역에서 API 를 고르세요."}
+            self._narrow_cancel.clear()
+            self._narrow_run = {
+                "busy": True, "done": 0, "total": translate_module.좁히기최대,
+                "message": f"{number}번 묶음을 좁히는 중…", "finished": False,
+                "ok": True, "key": group.key, "number": int(number),
+            }
+
+        def 진행(보낸수: int, 최대: int) -> None:
+            self._narrow_run.update({
+                "done": 보낸수, "total": 최대,
+                "message": f"{number}번 묶음을 좁히는 중 · {보낸수}번째 보냄 (최대 {최대}번)",
+            })
+
+        def 돌리기() -> None:
+            try:
+                결과 = group.session.좁히기(
+                    provider, int(number), on_progress=진행,
+                    should_stop=self._narrow_cancel.is_set)
+                self._absorb(group, pipeline)
+                그만둠 = self._narrow_cancel.is_set()
+                self._narrow_run.update({
+                    "ok": True,
+                    "message": ("좁히기를 그만뒀습니다." if 그만둠 else
+                                f"좁히기 끝 — 막힌 줄 {len(결과['culprits'])}개, "
+                                f"번역해 넣은 줄 {결과['translated']}개"),
+                })
+                log.write("번역", "거절 묶음 좁히기", 작품=group.key, 묶음=number,
+                          막힌줄=len(결과["culprits"]), 못좁힌줄=len(결과["unresolved"]),
+                          보낸수=결과["calls"], 그만둠=그만둠)
+            except ValueError as error:
+                self._narrow_run.update({"ok": False, "message": str(error)})
+            except Exception as error:      # noqa: BLE001
+                self._narrow_run.update(
+                    {"ok": False, "message": f"좁히지 못했습니다: {error}"})
+                log.error("좁히기 실패", error, 작품=group.key, 묶음=number)
+            finally:
+                self._narrow_run["finished"] = True
+                self._narrow_run["busy"] = False
+
+        if not self._run_in_background:
+            돌리기()
+        else:
+            threading.Thread(target=돌리기, daemon=True).start()
+        return {"ok": True, "message": f"{number}번 묶음을 좁히기 시작했습니다."}
+
+    def narrow_progress(self) -> dict[str, Any]:
+        """좁히기가 어디까지 왔는지. 화면이 짧은 간격으로 물어본다."""
+        return dict(self._narrow_run)
+
+    def narrow_stop(self) -> dict[str, Any]:
+        """좁히기를 그만둔다. 지금 보낸 것까지만 하고 멈춘다. 지나간 줄은 남는다."""
+        if not self._narrow_run.get("busy"):
+            return {"ok": True, "message": "좁히는 중이 아닙니다."}
+        self._narrow_cancel.set()
+        self._narrow_run["message"] = "그만두는 중입니다 — 지금 보낸 것만 받고 멈춥니다…"
+        return {"ok": True, "message": "그만두는 중입니다."}
+
     def translate_locally(self, all_remaining: bool = False) -> dict[str, Any]:
         """내 컴퓨터 AI 로 번역한다.
 
@@ -3946,6 +4164,9 @@ class Controller:
             # 빈 글로는 못 고친다 — 줄을 없애고 싶으면 지우기가 따로 있다
             if 줄 is None or not 글 or str(줄.get("ja", "")) == 글:
                 continue
+            # **받아쓰기가 실제로 틀린 자리다.** 거절 단서가 「전에 이렇게 고친
+            # 적 있음」 을 띄우는 데 쓴다(`asr_fixes`). 못 적어도 고치기는 간다
+            asr_fixes.적기(str(줄.get("ja", "")), 글)
             줄["ja"] = 글
             바뀐것 += 1
 

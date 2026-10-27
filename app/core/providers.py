@@ -44,7 +44,15 @@ class RateLimited(ProviderError):
 
 
 class Refused(ProviderError):
-    """내용 때문에 거절당했다. 다른 곳이나 복붙으로 넘겨야 한다."""
+    """내용 때문에 거절당했다. 다른 곳이나 복붙으로 넘겨야 한다.
+
+    `category` 는 AI 가 붙여 준 거절 분류(Claude 의 `stop_details.category`).
+    **왜 막혔는지 AI 가 직접 말해 주는 것은 이것뿐이다.** 없으면 None.
+    """
+
+    def __init__(self, message: str = "", category: str | None = None):
+        super().__init__(message)
+        self.category = category
 
 
 class NetworkError(ProviderError):
@@ -762,7 +770,8 @@ class AnthropicProvider(Provider):
             raise Refused(
                 "Claude 가 이 묶음을 거절했습니다"
                 + (f" (분류: {갈래})" if 갈래 else "")
-                + ". 이 묶음은 복붙으로 넘깁니다."
+                + ". 이 묶음은 복붙으로 넘깁니다.",
+                category=str(갈래) if 갈래 else None,
             )
         if 그친까닭 == "max_tokens":
             raise ProviderError(

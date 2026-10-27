@@ -24,4 +24,12 @@ pywebview>=5.0
 # card first and only then installs that file. Putting them back here would
 # make every install pay the 1.5 GB again.
 
-# Translation providers are called with the standard library only.
+# Translation providers are called with the standard library, except Claude.
+#
+# Claude (Anthropic API) goes through the official SDK: it retries 429/5xx and
+# dropped connections on its own and tells errors apart by type. Major version
+# pinned: 2.x changed how the key is sent (Authorization: Bearer instead of
+# x-api-key) and a new major can move things like that again. Needs Python 3.10+.
+# Only imported when Claude is the chosen provider, so a folder that has not
+# updated yet still starts.
+anthropic>=2.3,<3

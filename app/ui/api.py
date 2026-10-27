@@ -3518,12 +3518,18 @@ class Controller:
         번역을 시작한 뒤에 알면, 왜 안 되는지 모르는 채로 붙여넣기만 하게 된다.
         """
         보낼것 = "1\tこんにちは"
+        # **주소와 모델 이름은 내 컴퓨터에서 도는 것에만** 넘긴다 — 실제로
+        # 번역할 때(`job.Pipeline`)와 같은 규칙이다. 화면은 이 확인 단추에 늘
+        # 「내 컴퓨터 AI」 칸의 값을 실어 보낸다. 그대로 넘기면 Groq 이 키를
+        # 들고 `localhost` 로 가고, Claude 는 `qwen2.5:14b` 라는 모델을 찾다가
+        # 「그런 모델이 없다」 로 실패했다. 실제 번역은 되는데 확인만 안 된다
+        내컴퓨터 = providers.is_local(provider_id)
         try:
             provider = providers.create(
                 provider_id,
                 api_key=settings_store.api_key(self.settings, provider_id),
-                model=model,
-                url=url,
+                model=model if 내컴퓨터 else "",
+                url=url if 내컴퓨터 else "",
             )
             답 = provider.translate(
                 "다음 한 줄을 한국어로 옮겨라. 번호<탭>문장 형태 그대로 한 줄만 내라.\n"

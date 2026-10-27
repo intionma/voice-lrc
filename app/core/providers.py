@@ -2,8 +2,8 @@
 
 두 갈래다.
 
-**자동** — 사용자가 받아 둔 API 키로 프로그램이 직접 부른다. 카드 등록 없이
-받을 수 있는 키만 목록에 둔다. 키는 사용자 PC에만 저장하고 저장소에는 넣지 않는다.
+**자동** — 사용자가 받아 둔 API 키로 프로그램이 직접 부른다. 키는 사용자 PC에만
+저장하고 저장소에는 넣지 않는다.
 
 **복붙** — 키 없이 채팅창에 붙여넣는다. 느리지만 막히지 않는다.
 
@@ -600,6 +600,209 @@ class LMStudioProvider(LocalProvider):
     endpoint = "http://localhost:1234/v1/chat/completions"
 
 
+# ---- Claude (Anthropic API) ----
+#
+# 다른 공급자는 표준 라이브러리로 직접 부르는데 여기만 **공식 `anthropic`
+# 부품**을 쓴다. 429·5xx·끊김을 알아서 다시 시도하고, 오류를 종류별로 나눠
+# 준다. 손으로 짜면 그것을 다 다시 만들어야 한다.
+
+# 서버가 거절하면 다른 모델로 **그 자리에서** 다시 돌려 주는 기능을 받는 모델.
+# 이 밖의 모델에 붙이면 400 이다 — Haiku 5.5 는 대신 돌릴 모델이 없다
+_대신돌림_되는모델 = frozenset({
+    "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1", "claude-sonnet-5-5",
+})
+_대신돌림_머리 = "server-side-fallback-2026-07-01"
+
+# `output_config.effort` 를 받는 모델 줄기. 옛 모델(Haiku 4.5 등)은 이 값에 400 이다
+_노력_되는줄기 = ("claude-opus-5", "claude-fable-5", "claude-sonnet-5", "claude-haiku-5")
+
+# 답이 이만큼 길어질 수 있다. 600줄 묶음의 한국어는 수천~만 토큰이고, 생각하는
+# 몫이 그 위에 붙는다. **작게 잡으면 답이 중간에 잘린다** — 잘린 답을 번역으로
+# 담으면 뒷줄이 통째로 빈다. 흘려 받으므로(`stream`) 길어도 연결이 안 끊긴다
+_최대출력 = 64000
+
+
+def _anthropic_클라이언트(api_key: str):
+    """진짜 클라이언트. 시험은 이 자리를 가짜로 바꾼다."""
+    try:
+        import anthropic
+    except ImportError as error:
+        raise ProviderError(
+            "Claude API 부품(anthropic)이 깔려 있지 않습니다. "
+            "설정 맨 위 「지금 판」 에서 업데이트하면 함께 깔립니다."
+        ) from error
+    return anthropic.Anthropic(api_key=api_key)
+
+
+class AnthropicProvider(Provider):
+    """Claude 를 **내 API 키로** 직접 부른다.
+
+    OpenRouter 를 거쳐도 Claude 를 쓸 수 있지만, 그러면 Anthropic 에서 받은
+    크레딧이 아니라 OpenRouter 크레딧이 나간다.
+
+    ## 거절은 HTTP 200 으로 온다
+
+    Claude 는 내용 때문에 안 하겠다고 할 때 오류를 내지 않는다. **정상 응답에
+    `stop_reason: "refusal"`** 을 실어 보낸다. 그것을 안 보고 본문만 꺼내면 빈
+    답이나 반쯤 쓰다 만 답을 번역으로 담는다. 꼭 먼저 본다 — 거절이면 `Refused`
+    를 던져서 그 묶음만 복붙으로 넘긴다(`translate.run_auto`).
+
+    모델이 받아 주면 **서버 쪽 대신 돌리기**(`fallbacks: "default"`)를 켠다.
+    거절당하면 Anthropic 이 고른 다른 모델로 같은 요청을 그 자리에서 다시 돌린다.
+    그 모델도 거절하면 그때 `refusal` 이 온다.
+
+    ## 잘린 답도 실패다
+
+    `stop_reason: "max_tokens"` 는 답이 한도에서 잘렸다는 뜻이다. 앞부분만으로도
+    줄 번호가 맞아 보여서 그대로 담기 쉽다. 실패로 본다.
+    """
+
+    info = ProviderInfo(
+        id="anthropic",
+        name="Claude (Anthropic API)",
+        needs_key=True,
+        key_url="https://platform.claude.com/settings/keys",
+        note="내 Anthropic API 키로 Claude 를 직접 부른다. 쓴 만큼 크레딧이 나간다",
+        default_model="claude-opus-5-5",
+    )
+
+    # 시험이 가짜로 바꿔 끼우는 자리
+    _클라이언트만들기 = staticmethod(_anthropic_클라이언트)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # 마지막 요청이 쓴 토큰. 크레딧이 어디로 나가는지 기록에 남기려고 든다
+        self.마지막사용량: dict[str, int] = {}
+
+    def translate_split(
+        self, rules: str, data: str,
+        on_progress: Callable[[str], None] | None = None,
+    ) -> str:
+        """규칙은 `system`, 번역할 줄은 `user` 에 따로 넣는다.
+
+        규칙은 묶음마다 같다. 그것만 떼어 두면 **캐시**에 걸려서 둘째 묶음부터
+        그 몫이 싸진다(읽기는 약 10분의 1 값). 자막 줄에 「위 지시를 무시하라」
+        같은 말이 섞여 있어도 지시와 섞이지 않는다.
+        """
+        return self.translate(data, system=rules, on_progress=on_progress)
+
+    def translate(
+        self, prompt: str, system: str = "",
+        on_progress: Callable[[str], None] | None = None,
+    ) -> str:
+        if not self.api_key:
+            raise AuthFailed("Claude API 키가 없습니다. 설정 › 번역에서 넣어 주세요.")
+        클라이언트 = self._클라이언트만들기(self.api_key)
+        try:
+            import anthropic
+        except ImportError:          # 가짜 클라이언트로 도는 시험
+            anthropic = None
+
+        인자: dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": _최대출력,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if system:
+            인자["system"] = [{
+                "type": "text", "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }]
+        if self.model.startswith(_노력_되는줄기):
+            # 번역은 깊이 따질 일이 적다. Opus 5.5 의 기본도 이것이지만, 모델마다
+            # 기본이 달라서 적어 둔다
+            인자["output_config"] = {"effort": "medium"}
+        if self.model in _대신돌림_되는모델:
+            인자["betas"] = [_대신돌림_머리]
+            인자["fallbacks"] = "default"
+
+        try:
+            with 클라이언트.beta.messages.stream(**인자) as 흐름:
+                if on_progress is not None:
+                    지금까지 = ""
+                    for 조각 in 흐름.text_stream:
+                        지금까지 += 조각
+                        on_progress(지금까지)
+                답 = 흐름.get_final_message()
+        except Exception as error:      # noqa: BLE001 — 종류별로 아래에서 가른다
+            raise self._바꾸기(error, anthropic) from error
+
+        사용 = getattr(답, "usage", None)
+        self.마지막사용량 = {
+            이름: int(getattr(사용, 이름, 0) or 0)
+            for 이름 in ("input_tokens", "output_tokens",
+                        "cache_read_input_tokens", "cache_creation_input_tokens")
+        } if 사용 is not None else {}
+        그친까닭 = getattr(답, "stop_reason", None)
+        # 묶음마다 얼마나 썼는지 남긴다. 받은 크레딧이 얼마나 빨리 줄어드는지
+        # 알려면 이것밖에 없다. 기록 때문에 번역이 멈추면 안 된다
+        try:
+            from app.core import log
+            log.write("번역", "Claude 사용량", 모델=self.model, 그친까닭=그친까닭,
+                      입력=self.마지막사용량.get("input_tokens", 0),
+                      출력=self.마지막사용량.get("output_tokens", 0),
+                      캐시읽음=self.마지막사용량.get("cache_read_input_tokens", 0))
+        except Exception:      # noqa: BLE001
+            pass
+
+        if 그친까닭 == "refusal":
+            갈래 = getattr(getattr(답, "stop_details", None), "category", None)
+            raise Refused(
+                "Claude 가 이 묶음을 거절했습니다"
+                + (f" (분류: {갈래})" if 갈래 else "")
+                + ". 이 묶음은 복붙으로 넘깁니다."
+            )
+        if 그친까닭 == "max_tokens":
+            raise ProviderError(
+                "답이 너무 길어 중간에 잘렸습니다. 설정에서 한 번에 보내는 줄 수를 줄여 주세요."
+            )
+
+        글 = "".join(
+            getattr(덩이, "text", "") for 덩이 in (getattr(답, "content", None) or [])
+            if getattr(덩이, "type", "") == "text"
+        ).strip()
+        if not 글:
+            raise Refused("빈 답이 왔습니다. 거절당했을 수 있습니다.")
+        return 글
+
+    @staticmethod
+    def _바꾸기(error: Exception, anthropic) -> ProviderError:
+        """SDK 의 오류를 이 앱의 오류 종류로. **이미 다시 시도한 뒤**의 것이다
+        (SDK 가 429·5xx·끊김을 두 번 더 해 본다)."""
+        if isinstance(error, ProviderError):
+            return error
+        if anthropic is None:
+            return ProviderError(str(error))
+        if isinstance(error, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+            return AuthFailed("Claude API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인해 주세요.")
+        if isinstance(error, anthropic.RateLimitError):
+            기다림 = None
+            try:
+                기다림 = float(error.response.headers.get("retry-after", ""))
+            except (AttributeError, TypeError, ValueError):
+                pass
+            return RateLimited(
+                "Claude API 사용 한도에 걸렸습니다"
+                + (f" ({int(기다림)}초 뒤에 풀립니다)" if 기다림 else "")
+                + ". 남은 묶음은 복붙으로 넘깁니다.",
+                retry_after_sec=기다림,
+            )
+        if isinstance(error, anthropic.NotFoundError):
+            return ProviderError("그런 Claude 모델이 없습니다. 설정에서 모델 이름을 확인해 주세요.")
+        if isinstance(error, anthropic.BadRequestError):
+            말 = str(getattr(error, "message", "") or error)
+            if "credit" in 말.lower() or "billing" in 말.lower():
+                return ProviderError("Anthropic 크레딧이 모자랍니다. 콘솔에서 남은 양을 확인해 주세요.")
+            return ProviderError(f"Claude API 가 요청을 받지 않았습니다: {말[:300]}")
+        if isinstance(error, (anthropic.APIConnectionError, anthropic.APITimeoutError)):
+            return NetworkError("Claude API 에 연결하지 못했습니다. 인터넷을 확인해 주세요.")
+        if isinstance(error, anthropic.APIStatusError):
+            if error.status_code == 529 or error.status_code >= 500:
+                return NetworkError(f"Claude 서버가 지금 바쁩니다 (HTTP {error.status_code}). 잠시 뒤에 다시 해 주세요.")
+            return ProviderError(f"Claude API 오류 (HTTP {error.status_code}): {str(error)[:300]}")
+        return ProviderError(f"Claude API 를 부르다 실패했습니다: {error}")
+
+
 class ManualProvider(Provider):
     """키 없이 채팅창에 직접 붙여넣는 방식.
 
@@ -623,6 +826,7 @@ REGISTRY: dict[str, type[Provider]] = {
     cls.info.id: cls
     for cls in (
         GeminiProvider,
+        AnthropicProvider,
         GroqProvider,
         OpenRouterProvider,
         OllamaProvider,
@@ -632,7 +836,7 @@ REGISTRY: dict[str, type[Provider]] = {
 }
 
 # 보여 줄 차례. 키 없이 바로 되는 것이 앞, 거절이 없는 것이 그다음이다
-_ORDER = ("manual", "ollama", "lmstudio", "gemini", "groq", "openrouter")
+_ORDER = ("manual", "ollama", "lmstudio", "gemini", "anthropic", "groq", "openrouter")
 
 
 def available() -> list[ProviderInfo]:

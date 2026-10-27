@@ -1363,3 +1363,8 @@ button.small { padding: 6px 14px; font-size: var(--t-body); }
 .clue-narrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .clue-note { color: var(--muted); font-size: var(--t-small); }
 #narrow[data-arm="1"] { color: var(--text); border-color: var(--warn); }
+
+/* 미성년 의심 — 자동 번역을 멈춘 작품. 거절 단서와 같은 모양에 왼쪽 띠만 노랑
+   (「봐야 할 것」). 빨강은 망가짐·실패라서 쓰지 않는다 — 막은 것이 아니다 */
+.clues.minor { box-shadow: inset 3px 0 0 var(--warn); }
+#minor-go[data-arm="1"] { color: var(--text); border-color: var(--warn); }

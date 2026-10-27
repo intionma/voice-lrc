@@ -48,7 +48,6 @@
       <p class="onb-hint">나중에 설정에서 바꿀 수 있습니다.</p>
       <div class="onb-picks">
         <button class="onb-pick" id="onb-route-chat" data-route="chat">
-          <em class="onb-tip">대부분 이걸 씁니다</em>
           <strong>쓰는 AI에 복사해서 붙여넣기</strong>
           <span>ChatGPT · Claude · Gemini · Grok — 쓰던 구독을 그대로 씁니다</span>
         </button>
@@ -57,6 +56,9 @@
           <span>DeepL · 파파고 · 구글 — 설명글 없이 번호와 원문만 보냅니다</span>
         </button>
         <button class="onb-pick" id="onb-route-endpoint" data-route="endpoint">
+          <!-- 추천은 하나다. 원클릭(받아쓰기만 누르면 번역까지)이 되는 것이 이것이고,
+               기본은 내 컴퓨터 AI 다 — 계정도 거절도 없다. DeepL·Claude 는 설정에서 -->
+          <em class="onb-tip">손 안 대고 끝까지</em>
           <strong>내 컴퓨터 AI나 API로 자동</strong>
           <span>손이 안 갑니다. Ollama 설치나 API 키가 필요합니다</span>
         </button>
@@ -245,6 +247,23 @@
           <!-- 거절당한 묶음이면 **걸릴 만한 자리.** AI 는 왜 막았는지 말해 주지
                않는다. 그래서 이유가 아니라 단서다 — 「때문에」 는 좁히기로
                확인했을 때만 쓴다. 이 목록은 AI 로 안 나간다 -->
+          <!-- 미성년 설정으로 보여 **자동 번역을 시작하지 않은** 작품. 막지
+               않는다 — 근거를 보고 「그래도 번역」 을 누르면 간다. 원클릭에서는
+               사람이 대사를 볼 틈이 없어서, 보내기 전에 한 번만 묻는다 -->
+          <div id="minor-hold" class="clues minor" hidden>
+            <div class="clue-head">
+              <div class="cat">이 작품은 미성년 설정으로 보입니다 — 자동 번역을 시작하지 않았습니다</div>
+              <div class="sub">성인 작품이 맞으면 「그래도 번역」 을 누르세요. 막지 않습니다. 정하는 것은 쓰는 분입니다.</div>
+              <div class="sub" id="minor-tags" hidden></div>
+              <div class="sub" id="minor-sum"></div>
+            </div>
+            <div id="minor-list" class="clue-list"></div>
+            <div class="clue-narrow">
+              <button id="minor-go" class="ghost small" type="button">그래도 번역</button>
+              <span class="clue-note">받아쓰기는 끝까지 됐습니다. 복사해서 직접 번역하는 길도 그대로입니다.</span>
+            </div>
+          </div>
+
           <div id="refusal-clues" class="clues" hidden>
             <div id="clue-head" class="clue-head"></div>
             <div id="clue-verdict" class="clue-verdict" hidden></div>
@@ -549,10 +568,16 @@
         <p class="hint" id="knob-locked" hidden></p>
       </details>
 
-      <!-- 「자동」 길에서만 뜬다. 어느 주소로 보낼지 -->
+      <!-- 「자동」 길에서만 뜬다. 원클릭이 어디로 갈지 — 내 컴퓨터 AI · DeepL ·
+           Claude … 를 이 한 자리에서 고른다 -->
       <div id="send-where" hidden>
         <p class="hint">어디로 보낼까요</p>
         <div id="provider-list" class="radios"></div>
+        <!-- 밖의 AI 를 골랐을 때만. 막지 않는다 — 알리기만 한다 -->
+        <p class="hint" id="api-warn" hidden>
+          성인물을 AI API 로 보내면 그 회사 이용 정책에 걸려 <b>계정이 정지될 수 있습니다.</b>
+          걱정되면 「번역기」 길의 DeepL 이나 내 컴퓨터 AI 를 쓰세요.
+        </p>
       </div>
       <label class="field" id="key-field" hidden>
         <span>API 키</span>

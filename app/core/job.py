@@ -1253,6 +1253,11 @@ class Pipeline:
         if provider is None:
             return group
         내컴퓨터 = providers.is_local(route.정해진값(self.settings)["보내는길"])
+        if hasattr(provider, "고정말"):
+            # 기계 번역기는 지시문을 못 받는다. 호칭을 「번역하지 말고 이대로」
+            # 로 넘긴다(`providers.DeepLProvider`). AI 길은 지시문에 이미 들어 있다
+            from app.core import names
+            provider.고정말 = names.짝들(names.가져오기(getattr(group, "work_key", "")))
 
         def 진행(update) -> None:
             for job in group.jobs:

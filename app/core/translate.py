@@ -29,7 +29,9 @@ from app.core.exchange import (
     칸크기,
     remap_renumbered,
 )
-from app.core.providers import Provider, ProviderError, RateLimited, Refused
+from app.core.providers import (
+    Provider, ProviderError, QuotaExhausted, RateLimited, Refused,
+)
 
 # 빠진 줄을 몇 번까지 다시 물어볼지. 이보다 많이 하면 사용자만 기다린다
 MAX_RETRIES = 2
@@ -54,7 +56,18 @@ def _물어보기(
 
     `translate_split` 이 있는 공급자만 나눠 받는다. 없으면 예전 그대로다 —
     시험에 끼우는 가짜 부품도 그대로 돌아간다.
+
+    **기계 번역기는 줄째로 받는다**(`translate_lines`). 지시문을 못 받고,
+    줄 목록으로 주면 같은 개수로 돌려줘서 줄이 어긋날 일이 없다. 가린 표는
+    풀어서 원문으로 준다 — DeepL 을 고르면 가리기가 꺼지지만, 혹시 켜진 채
+    넘어와도 번역기가 `KW01` 을 받을 일은 없어야 한다(`Batch.plain` 과 같다).
     """
+    줄째로 = getattr(provider, "translate_lines", None)
+    if callable(줄째로):
+        return 줄째로([
+            (int(줄["index"]), str(줄.get("ja_raw") or 줄.get("ja", "")))
+            for 줄 in batch.segments
+        ])
     나눠받기 = getattr(provider, "translate_split", None)
     if callable(나눠받기):
         if on_progress is not None:
@@ -380,10 +393,15 @@ class TranslationSession:
         should_stop: Callable[[], bool] | None = None,
     ) -> None:
         """공급자로 끝까지 돌려 본다. 못 한 묶음은 복붙 대기줄로 넘긴다."""
+        다씀 = ""
         for batch in self._batches:
             if should_stop and should_stop():
                 break
             if batch.number in self._auto_done:
+                continue
+            if 다씀:
+                # 이번 달 한도를 다 썼다. 남은 것을 보내 봐야 같은 답이다
+                self._hand_off(batch, 다씀)
                 continue
 
             _report(on_progress, self.progress(f"번역 중 {batch.number}/{batch.total}"))
@@ -392,6 +410,9 @@ class TranslationSession:
                 self._auto_done.add(batch.number)
             except Refused as error:
                 self._거절됨(provider, batch, error)
+            except QuotaExhausted as error:
+                다씀 = str(error)
+                self._hand_off(batch, 다씀)
             except RateLimited as error:
                 # 한도는 기다리면 풀리지만 사용자를 세워 두는 것보다 넘기는 편이 낫다
                 self._hand_off(batch, str(error))

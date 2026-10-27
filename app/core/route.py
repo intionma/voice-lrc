@@ -35,7 +35,9 @@ Gemini · Groq · OpenRouter)가 한 줄로 늘어서 있었다. 고르는 사�
                **번역기에는 못 쓴다** — 번역기는 표를 그대로 두지 않는다
     묶음       한 번에 몇 줄을 보내는가. 사람이 붙여넣는 길은 작게,
                기계가 받는 길은 크게
-    보내는길   `endpoint` 에서만 뜻이 있다. 어느 주소로 보내는가
+    보내는길   `endpoint` 에서만 뜻이 있다. 어느 곳으로 보내는가 — 내 컴퓨터 AI ·
+               DeepL · Claude 등을 **한 자리에서** 고른다(원클릭). DeepL 을 고르면
+               지시문·가리기가 꺼진다
 """
 
 from __future__ import annotations
@@ -100,6 +102,14 @@ ROUTES: tuple[Route, ...] = (
 
 DEFAULT = "chat"
 
+
+def 기계번역기(공급자: str) -> bool:
+    """이 공급자가 기계 번역기(DeepL)인가. 지시문을 못 받고 거절이 없다."""
+    from app.core import providers
+
+    것 = providers.REGISTRY.get(str(공급자 or ""))
+    return bool(것 is not None and 것.info.machine)
+
 _BY_ID = {r.id: r for r in ROUTES}
 
 # 손으로 건드릴 수 있는 손잡이 이름. 설정에 이 이름으로 남는다
@@ -154,10 +164,30 @@ def 정해진값(settings: dict[str, Any]) -> dict[str, Any]:
             # 알아낼 길이 없다. 옛 설정에 남아 있어도 마찬가지다
             if 길.id == "endpoint" and 낸것 == "manual":
                 continue
+            # **보낼 곳을 고르는 것은 「자동」 길뿐이다.** 내 컴퓨터 AI · DeepL ·
+            # Claude 를 한 자리에서 고른다. 붙여넣는 두 길은 사람이 붙여넣으므로
+            # 보낼 곳이 늘 「직접」 이다 — 옛 설정에 다른 값이 남아 있어도 그렇다
+            if 길.id != "endpoint" and 낸것 != "manual":
+                continue
         else:
             낸것 = bool(낸것)
         값[이름] = 낸것
+    if 기계번역기(값["보내는길"]):
+        # **기계 번역기는 지시문도 가림표도 못 받는다.** 지시문까지 번역해 돌려
+        # 주고, `KW01` 은 뭉개진다. 길이 「자동」 이어도 보낼 곳이 DeepL 이면
+        # 이 둘은 꺼진다 — 「번역기」 길이 잠그는 것과 같은 까닭이다
+        값["지시문"] = False
+        값["가리기"] = False
     return 값
+
+
+def 잠근손잡이(settings: dict[str, Any]) -> list[str]:
+    """지금 못 건드리는 손잡이. 길이 잠근 것에 보낼 곳이 잠근 것을 더한다."""
+    지금 = 정해진값(settings)
+    잠근것 = list(get(지금["route"]).잠근것)
+    if 기계번역기(지금["보내는길"]):
+        잠근것 += [이름 for 이름 in ("지시문", "가리기") if 이름 not in 잠근것]
+    return 잠근것
 
 
 def copy_style(settings: dict[str, Any]) -> str:
@@ -179,5 +209,5 @@ def to_view(settings: dict[str, Any]) -> dict[str, Any]:
             for r in ROUTES
         ],
         "지금": 지금,
-        "잠근것": list(get(지금["route"]).잠근것),
+        "잠근것": 잠근손잡이(settings),
     }

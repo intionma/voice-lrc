@@ -16,7 +16,9 @@
 
 from __future__ import annotations
 
+import html
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
@@ -59,6 +61,14 @@ class NetworkError(ProviderError):
     """인터넷이 안 되거나 서버가 죽었다."""
 
 
+class QuotaExhausted(RateLimited):
+    """이번 달 한도를 다 썼다. **기다려도 오늘은 안 풀린다.**
+
+    한도(`RateLimited`)와 달리 남은 묶음을 계속 보내 봐야 다 같은 답이 온다.
+    받은 쪽(`translate.run_auto`)은 남은 것을 한꺼번에 복붙으로 넘긴다.
+    """
+
+
 @dataclass(frozen=True)
 class ProviderInfo:
     """UI가 목록을 그릴 때 쓰는 설명."""
@@ -79,6 +89,9 @@ class ProviderInfo:
     # 모르는 사이에 바뀌고, 틀린 값을 믿고 고른 사람이 손해를 본다. 서로의
     # 크기만 말한다
     model_choices: tuple[tuple[str, str], ...] = ()
+    # 기계 번역기인가. 지시문을 못 받고, 내용 때문에 거절하지 않는다.
+    # 고르면 지시문·가리기가 꺼진다(`route.정해진값`)
+    machine: bool = False
 
 
 Transport = Callable[[str, dict[str, str], dict[str, Any]], tuple[int, str]]
@@ -824,6 +837,189 @@ class AnthropicProvider(Provider):
         return ProviderError(f"Claude API 를 부르다 실패했습니다: {error}")
 
 
+class DeepLProvider(Provider):
+    """DeepL 번역기를 **API 로** 부른다. 「자동」 길에서 고르는 보낼 곳 하나다.
+
+    ## 거절이 없다
+
+    기계 번역기라 내용을 보고 거절하지 않는다. AI 회사의 「성적인 내용을
+    만들지 말 것」 정책이 걸리는 구조가 아니고, 그래서 낱말을 가릴 까닭도
+    없다(DeepL 을 고르면 가리기가 꺼진다).
+
+    ## 줄 목록으로 보낸다
+
+    한 줄씩 배열로 보내면 **같은 개수, 같은 차례**로 돌아온다. AI 처럼 줄을
+    빼먹거나 번호를 다시 매기는 일이 구조적으로 없다. 그래서 프롬프트가 아니라
+    줄을 받는다(`translate_lines` — `translate._물어보기` 가 이것을 먼저 찾는다).
+
+    ## 호칭은 번역하지 말라는 표로 감싼다
+
+    `お兄ちゃん = 오빠` 가 적혀 있으면 원문의 `お兄ちゃん` 을 `<k>오빠</k>` 로
+    바꿔 보낸다. DeepL 은 `ignore_tags` 안을 손대지 않으므로 「오빠」 가 그대로
+    번역문에 들어간다. 번역기는 그 자리 조사를 「오빠」 를 모르고 고르므로,
+    돌아온 뒤 끝소리에 맞춰 고친다(`wordbook.조사맞추기`).
+
+    ## 무료 키
+
+    무료 키는 끝이 `:fx` 이고 주소가 다르다(`api-free.deepl.com`). 키로 고른다.
+    """
+
+    info = ProviderInfo(
+        id="deepl",
+        name="DeepL (API)",
+        needs_key=True,
+        key_url="https://www.deepl.com/your-account/keys",
+        note="기계 번역기라 거절이 없다. 키를 받을 때 카드 확인이 필요하다",
+        machine=True,
+    )
+
+    무료주소 = "https://api-free.deepl.com/v2"
+    유료주소 = "https://api.deepl.com/v2"
+    # 한 번에 보내는 크기. DeepL 한도는 128KiB 인데 머리와 이스케이프 몫을 남긴다
+    한번최대 = 100_000
+    _감쌈 = "k"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # `{일본어: 한국어}`. 번역하지 말고 이 한국어를 그대로 쓰라는 것.
+        # 자동 번역을 시작하는 쪽(`job.Pipeline`)이 작품의 호칭을 넣어 준다
+        self.고정말: dict[str, str] = {}
+        # 마지막 요청에서 보낸 글자 수. 무료 한도가 글자로 세어진다
+        self.마지막글자수 = 0
+
+    def _주소(self, 끝: str) -> str:
+        뿌리 = self.무료주소 if self.api_key.endswith(":fx") else self.유료주소
+        return f"{뿌리}/{끝}"
+
+    def _머리(self) -> dict[str, str]:
+        return {"Authorization": f"DeepL-Auth-Key {self.api_key}"}
+
+    def translate(self, prompt: str) -> str:
+        """`번호<탭>일본어` 줄만 골라 옮긴다. 지시문 줄은 버린다.
+
+        번역기에 지시문을 보내면 지시문까지 번역해 돌려준다. 연결 확인처럼
+        프롬프트 꼴로 부르는 곳이 있어서 받아는 준다.
+        """
+        줄들 = []
+        for 줄 in str(prompt).splitlines():
+            번호, 탭, 글 = 줄.partition("\t")
+            if 탭 and 번호.strip().isdigit():
+                줄들.append((int(번호), 글))
+        if not 줄들:
+            raise ProviderError("옮길 줄이 없습니다.")
+        return self.translate_lines(줄들)
+
+    def translate_lines(self, 줄들: list[tuple[int, str]]) -> str:
+        """`[(번호, 일본어)]` → `번호<탭>한국어` 줄들."""
+        if not self.api_key:
+            raise AuthFailed("DeepL API 키가 없습니다. 설정 › 번역에서 넣어 주세요.")
+        보낼것 = [self._감싸기(글) for _, 글 in 줄들]
+        옮긴것: list[str] = []
+        for 덩이 in self._쪼개기(보낼것):
+            옮긴것 += self._보내기(덩이)
+        if len(옮긴것) != len(줄들):
+            raise ProviderError(
+                f"DeepL 이 {len(줄들)}줄을 받고 {len(옮긴것)}줄을 돌려줬습니다.")
+        self.마지막글자수 = sum(len(글) for _, 글 in 줄들)
+        try:
+            from app.core import log
+            log.write("번역", "DeepL 사용량", 줄=len(줄들), 글자=self.마지막글자수)
+        except Exception:      # noqa: BLE001 — 기록 때문에 번역이 멈추면 안 된다
+            pass
+        return "\n".join(
+            f"{번호}\t{self._풀기(글)}" for (번호, _), 글 in zip(줄들, 옮긴것))
+
+    def _쪼개기(self, 글들: list[str]) -> list[list[str]]:
+        덩이들: list[list[str]] = [[]]
+        크기 = 0
+        for 글 in 글들:
+            몫 = len(글.encode("utf-8")) + 16
+            if 덩이들[-1] and 크기 + 몫 > self.한번최대:
+                덩이들.append([])
+                크기 = 0
+            덩이들[-1].append(글)
+            크기 += 몫
+        return [덩이 for 덩이 in 덩이들 if 덩이]
+
+    def _보내기(self, 글들: list[str]) -> list[str]:
+        payload: dict[str, Any] = {
+            "text": 글들, "source_lang": "JA", "target_lang": "KO",
+        }
+        if self.고정말:
+            payload["tag_handling"] = "xml"
+            payload["ignore_tags"] = [self._감쌈]
+        status, body = self._post(self._주소("translate"), self._머리(), payload)
+        self._deepl오류(status, body)
+        try:
+            것 = json.loads(body)
+            return [str(x.get("text", "")) for x in 것.get("translations", [])]
+        except (json.JSONDecodeError, AttributeError) as error:
+            raise ProviderError(f"DeepL 답을 읽지 못했습니다: {body[:200]}") from error
+
+    def _deepl오류(self, status: int, body: str) -> None:
+        if status == 200:
+            return
+        if status == 403:
+            raise AuthFailed(
+                "DeepL 키가 올바르지 않습니다. 무료 키는 끝이 :fx 입니다 — 키를 다시 확인해 주세요.")
+        if status == 456:
+            raise QuotaExhausted(
+                "DeepL 이번 달 한도를 다 썼습니다. 남은 묶음은 복붙으로 넘깁니다.")
+        if status == 429:
+            raise RateLimited("DeepL 에 너무 자주 보냈습니다. 잠시 뒤에 다시 해 주세요.")
+        if status == 413:
+            raise ProviderError("DeepL 에 한 번에 너무 많이 보냈습니다.")
+        self._raise_for_status(status, body)
+
+    # ---- 호칭 감싸기 ----
+
+    def _감싸기(self, 글: str) -> str:
+        if not self.고정말:
+            return str(글)
+        # 표(xml)로 보내므로 `<` `&` 를 먼저 이스케이프한다. 대사에 `<3` 같은
+        # 것이 있으면 DeepL 이 표로 읽다가 터진다
+        난것 = html.escape(str(글), quote=False)
+        for ja in sorted(self.고정말, key=len, reverse=True):
+            ko = self.고정말[ja]
+            if ja and ko:
+                난것 = 난것.replace(
+                    html.escape(ja, quote=False),
+                    f"<{self._감쌈}>{html.escape(ko, quote=False)}</{self._감쌈}>")
+        return 난것
+
+    def _풀기(self, 글: str) -> str:
+        글 = str(글).replace("\n", " ")
+        if not self.고정말:
+            return 글.strip()
+        넣은것: list[str] = []
+
+        def 벗기기(만난것: re.Match) -> str:
+            안 = html.unescape(만난것.group(1))
+            넣은것.append(안)
+            return 안
+
+        글 = re.sub(rf"<{self._감쌈}>(.*?)</{self._감쌈}>", 벗기기, 글)
+        글 = html.unescape(글)
+        # 번역기는 「오빠」 를 모르고 그 자리 조사를 골랐다. 끝소리에 맞춘다
+        from app.core import wordbook
+        for 낱말 in sorted(set(넣은것), key=len, reverse=True):
+            글 = re.sub(
+                "(" + re.escape(낱말) + ")" + wordbook._조사찾기.pattern,
+                lambda m: m.group(1) + wordbook.조사맞추기(m.group(1), m.group(2)), 글)
+        return 글.strip()
+
+    def 남은글자(self) -> tuple[int, int] | None:
+        """`(이번 달 쓴 글자, 한도)`. 못 알면 None. 연결 확인에서 보여 준다."""
+        try:
+            status, body = self._post(self._주소("usage"), self._머리(), {})
+            if status != 200:
+                return None
+            것 = json.loads(body)
+            return int(것.get("character_count", 0)), int(것.get("character_limit", 0))
+        except Exception:      # noqa: BLE001
+            return None
+
+
 class ManualProvider(Provider):
     """키 없이 채팅창에 직접 붙여넣는 방식.
 
@@ -848,6 +1044,7 @@ REGISTRY: dict[str, type[Provider]] = {
     for cls in (
         GeminiProvider,
         AnthropicProvider,
+        DeepLProvider,
         GroqProvider,
         OpenRouterProvider,
         OllamaProvider,
@@ -857,7 +1054,8 @@ REGISTRY: dict[str, type[Provider]] = {
 }
 
 # 보여 줄 차례. 키 없이 바로 되는 것이 앞, 거절이 없는 것이 그다음이다
-_ORDER = ("manual", "ollama", "lmstudio", "gemini", "anthropic", "groq", "openrouter")
+# 원클릭 기본인 내 컴퓨터 AI 가 맨 앞이고, 거절 없는 DeepL 이 그다음이다
+_ORDER = ("manual", "ollama", "lmstudio", "deepl", "gemini", "anthropic", "groq", "openrouter")
 
 
 def available() -> list[ProviderInfo]:

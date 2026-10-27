@@ -2857,6 +2857,7 @@ async function 번역칸그리기() {
   // 이 묶음을 넘겼습니다:」 를 붙이면 같은 말이 두 번이다
   if (것.reason) 사유칸.textContent = 것.reason;
   단서그리기(것.clues || null);
+  미성년멈춤그리기(것.minor_hold || null);
   // 몇 번 묶음을 복사하는지 밝혀 둔다. 창을 여럿 열어 놓고 오가면
   // 지금 손에 든 것이 몇 번인지 헷갈린다
   $("send-count").textContent = 것.total > 1
@@ -2970,7 +2971,9 @@ function 단서그리기(단서) {
   if (!칸) return;
   지금단서 = 단서;
   칸.hidden = !단서;
-  if (!단서) { 단서소리멈춤(false); return; }
+  // 소리는 여기서 안 멈춘다. 미성년 근거 칸에서 듣는 중일 수 있다 —
+  // 두 칸이 다 사라졌을 때 `미성년멈춤그리기` 가 멈춘다
+  if (!단서) return;
 
   const 머리 = $("clue-head");
   머리.innerHTML = "";
@@ -3010,7 +3013,66 @@ function 단서그리기(단서) {
 // 다 그리면 600줄짜리가 통째로 늘어선다. 앞의 것만 그리고 몇 줄 더 있는지 적는다
 const 단서보일수 = 150;
 
+// ---- 미성년 의심 — 자동 번역 직전에 한 번 묻는다 ----
+let 지금미성년 = null;
+
+function 미성년멈춤그리기(근거) {
+  const 칸 = $("minor-hold");
+  if (!칸) return;
+  지금미성년 = 근거;
+  칸.hidden = !근거;
+  // 들을 줄이 있는 칸이 둘 다 사라졌으면 듣던 것도 멈춘다
+  if (!근거 && !지금단서) 단서소리멈춤(false);
+  if (!근거) return;
+  const 태그칸 = $("minor-tags");
+  const 태그 = 근거.tags || [];
+  태그칸.hidden = !태그.length;
+  태그칸.textContent = 태그.length
+    ? "판매처가 붙인 태그: " + 태그.map((t) => `${t.term}(${t.gloss})`).join(", ")
+    : "";
+  $("minor-sum").textContent = 근거.count
+    ? `대사에서 걸린 줄 ${근거.count}개` + (근거.count > (근거.lines || []).length
+      ? ` — 앞의 ${(근거.lines || []).length}줄만 보여 드립니다` : "")
+    : "";
+  미성년목록그리기();
+  const 단추 = $("minor-go");
+  if (단추.dataset.arm !== "1") 단추.textContent = "그래도 번역";
+}
+
+function 미성년목록그리기() {
+  const 목록 = $("minor-list");
+  if (!목록 || !지금미성년) return;
+  목록.innerHTML = "";
+  (지금미성년.lines || []).forEach((줄) => 목록.appendChild(단서줄(줄)));
+}
+
+// **되돌릴 수 없는 일이다** — 한 번 보내면 그 글은 나간 것이다. 그래서 두 번
+// 눌러야 간다(규칙 4, 확인 방식은 「두 번 누르기」 하나로)
+async function 미성년그래도() {
+  const 단추 = $("minor-go");
+  if (단추.dataset.arm !== "1") {
+    단추.dataset.arm = "1";
+    단추.textContent = "한 번 더 누르면 번역합니다";
+    setTimeout(() => {
+      if (단추.dataset.arm !== "1") return;
+      단추.dataset.arm = "";
+      단추.textContent = "그래도 번역";
+    }, 4000);
+    return;
+  }
+  단추.dataset.arm = "";
+  단추.disabled = true;
+  단추.innerHTML = '<span class="spin"></span>번역을 시작하는 중…';
+  const 결과 = await api().minor_go();
+  단추.disabled = false;
+  단추.textContent = "그래도 번역";
+  알림(결과.message, 결과.ok ? "ok" : "bad");
+  await 번역칸그리기();
+}
+
 function 단서목록그리기() {
+  // 미성년 근거 칸도 같은 줄 모양이다. ▶ 를 누르면 둘 다 다시 그려야 ■ 가 맞는다
+  미성년목록그리기();
   const 목록 = $("clue-list");
   if (!목록 || !지금단서) return;
   목록.innerHTML = "";
@@ -3676,7 +3738,7 @@ const 길안내 = {
     "번역기는 줄을 합치는 버릇이 있어, 줄이 빠지면 앱이 짚어 줍니다.",
   ],
   endpoint: [
-    "설정 › 번역에서 내 컴퓨터 AI(Ollama)나 API 주소를 넣습니다.",
+    "처음에는 내 컴퓨터 AI 로 번역합니다. 설정 › 번역에서 DeepL 이나 Claude 같은 API 로 바꿀 수 있습니다.",
     "음원을 끌어다 놓고 「전부 받아쓰기」 를 누르면 받아쓰기와 번역이 이어서 돕니다.",
     "거절당한 묶음만 복붙으로 넘어옵니다.",
   ],
@@ -4552,6 +4614,9 @@ function 길그리기() {
       고른길 = r.id;
       // **길만 담고 손잡이는 안 담는다.** 안 건드린 손잡이는 새 길을 따라간다
       마지막상태 = await api().save_settings({ translation: { route: 고른길 } });
+      // 보낼 곳도 새 길을 따른다. 「자동」 에서 고른 Claude 가 「번역기」
+      // 길에 남아 있으면 안 맞는 곳이 골라진 채로 그려진다 (규칙 5)
+      고른공급자 = ((마지막상태.route || {}).지금 || {}).보내는길 || "manual";
       설정그리기(true);
       저장했다고알리기();
     };
@@ -4583,17 +4648,20 @@ function 손잡이그리기() {
   if (가림) { 가림.checked = 지금.가리기 !== false; 가림.disabled = 잠겼나("가리기"); }
   if (묶음) 묶음.value = 지금.묶음 || 300;
 
-  // **왜 못 건드리는지 적는다.** 회색으로만 만들어 놓으면 고장인 줄 안다
+  // **왜 못 건드리는지 적는다.** 회색으로만 만들어 놓으면 고장인 줄 안다.
+  // 잠그는 까닭은 둘이다 — 번역기 길이거나, 자동 길에서 DeepL 로 보내거나
   const 말 = $("knob-locked");
   if (말) {
     말.hidden = 잠근것.length === 0;
+    const 무엇 = 고른길 === "translator" ? "번역기 길에서" : "DeepL 로 보낼 때는";
     말.textContent = 잠근것.length
       ? "번역기는 지시문까지 번역해서 돌려주고, 가림표(KW01)는 뭉개져 "
-        + "되돌릴 수 없습니다. 그래서 이 둘은 번역기 길에서 끕니다."
+        + `되돌릴 수 없습니다. 그래서 ${무엇} 이 둘을 끕니다.`
       : "";
   }
 
-  // 「자동」 길에서만 어디로 보낼지 고른다
+  // 「자동」 길에서만 어디로 보낼지 고른다 — 원클릭이 어디로 갈지를 여기
+  // 한 자리에서 정한다(내 컴퓨터 AI · DeepL · Claude …)
   const 어디 = $("send-where");
   if (어디) 어디.hidden = 고른길 !== "endpoint";
 }
@@ -4617,7 +4685,9 @@ function 설정그리기(처음) {
     radio.type = "radio";
     radio.name = "provider";
     radio.checked = p.id === 고른공급자;
-    radio.onchange = () => { 고른공급자 = p.id; 설정그리기(); 설정저장(); };
+    // DeepL 을 고르면 지시문·가리기가 잠긴다. 저장한 뒤에야 창구가 그것을
+    // 알려 주므로 손잡이만 다시 그린다 — 글자 칸은 안 건드린다
+    radio.onchange = async () => { 고른공급자 = p.id; 설정그리기(); await 설정저장(); 손잡이그리기(); };
 
     const col = document.createElement("div");
     col.className = "col";
@@ -4644,6 +4714,12 @@ function 설정그리기(처음) {
 
   // 내 컴퓨터에서 도는 모델은 키가 없다. 주소와 모델 이름을 받는다
   $("key-field").hidden = !고른것.needs_key || 로컬;
+  // **밖의 AI 에 성인물을 보내면 계정이 정지될 수 있다.** 막지 않고 알리기만
+  // 한다 — 무엇을 보낼지는 쓰는 사람이 정한다. 기계 번역기와 내 컴퓨터는 해당 없음
+  if ($("api-warn")) {
+    $("api-warn").hidden = !(고른길 === "endpoint" && 고른것.needs_key
+                              && !로컬 && !고른것.machine);
+  }
   // Ollama 는 우리가 문맥 창을 넓혀 준다. LM Studio 는 그쪽 앱에서 정해야 한다
   $("lmstudio-note").hidden = 고른공급자 !== "lmstudio";
 
@@ -5151,6 +5227,7 @@ function 묶기() {
   $("local-now").onclick = 안전하게(() => 내컴퓨터로번역(false), "내 컴퓨터 AI로 번역하지 못했습니다");
   $("save-file").onclick = 파일로저장;
   $("narrow").onclick = 안전하게(좁히기누름, "좁히지 못했습니다");
+  $("minor-go").onclick = 안전하게(미성년그래도, "번역을 시작하지 못했습니다");
   $("narrow-stop").onclick = 안전하게(좁히기그만, "그만두지 못했습니다");
   $("copy-all").onclick = 안전하게(전부파일로, "묶음을 내보내지 못했습니다");
   $("submit").onclick = 안전하게(넣기, "넣지 못했습니다");

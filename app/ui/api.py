@@ -781,22 +781,37 @@ class Controller:
             "route": routes.to_view(self.settings),
             # 클립보드 감시. 켜졌는지 · 마지막 판정 · 되돌릴 것이 있는지
             "감시": self.감시상태(),
-            "providers": [
-                {
-                    "id": info.id,
-                    "name": info.name,
-                    "needs_key": info.needs_key,
-                    "key_url": info.key_url,
-                    "note": info.note,
-                    "has_key": bool(settings_store.api_key(self.settings, info.id)),
-                    # 내 컴퓨터에서 도는 것은 키가 아니라 주소를 받는다
-                    "local": info.local,
-                    "default_url": info.default_url,
-                    "default_model": info.default_model,
-                }
-                for info in providers.available()
-            ],
+            "providers": self._공급자목록(),
         }
+
+    def _공급자목록(self) -> list[dict[str, Any]]:
+        """화면에 그릴 번역 공급자들.
+
+        따로 뺀 까닭: **하네스가 이것을 그대로 쓴다.** 손으로 적은 두 줄(복붙 ·
+        Gemini)을 쓰는 동안 새로 붙인 Claude 는 단추 훑기에 한 번도 안 나왔다.
+        """
+        return [
+            {
+                "id": info.id,
+                "name": info.name,
+                "needs_key": info.needs_key,
+                "key_url": info.key_url,
+                "note": info.note,
+                "has_key": bool(settings_store.api_key(self.settings, info.id)),
+                # 내 컴퓨터에서 도는 것은 키가 아니라 주소를 받는다
+                "local": info.local,
+                "default_url": info.default_url,
+                "default_model": info.default_model,
+                "model_choices": [
+                    {"id": 이름, "label": 말} for 이름, 말 in info.model_choices
+                ],
+                # 지금 쓰는 것. 고른 적 없으면 기본값 — 화면이 비워 두면
+                # 무엇으로 도는지 모른다 (규칙 5)
+                "chosen_model": (providers.고른모델(info.id, self.settings)
+                                 or info.default_model) if info.model_choices else "",
+            }
+            for info in providers.available()
+        ]
 
     def _heal(self) -> None:
         """일꾼이 죽었는데 "도는 중" 표시만 남는 것을 푼다.
@@ -3528,7 +3543,9 @@ class Controller:
             provider = providers.create(
                 provider_id,
                 api_key=settings_store.api_key(self.settings, provider_id),
-                model=model if 내컴퓨터 else "",
+                # 밖의 AI 는 화면이 보낸 값이 아니라 **저장된 고른 모델**로 확인한다.
+                # 실제 번역이 쓰는 것과 같아야 확인한 뜻이 있다
+                model=model if 내컴퓨터 else providers.고른모델(provider_id, self.settings),
                 url=url if 내컴퓨터 else "",
             )
             답 = provider.translate(

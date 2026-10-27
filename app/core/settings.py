@@ -36,6 +36,9 @@ DEFAULTS: dict[str, Any] = {
         "model": "",
         # 내 컴퓨터에서 도는 번역 모델의 주소. 비우면 공급자 기본값을 쓴다
         "url": "",
+        # 밖의 AI 의 모델. 공급자마다 따로 — `model` 은 내 컴퓨터 AI 의 것이다
+        # (`providers.고른모델`). 비어 있으면 공급자 기본값
+        "api_models": {},
     },
     "output": {
         "offset_sec": 0.0,  # 자막이 밀리면 여기서 보정

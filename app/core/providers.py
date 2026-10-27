@@ -64,6 +64,13 @@ class ProviderInfo:
     # 내 컴퓨터에서 도는가. 그러면 받아쓰기와 그래픽카드를 나눠 쓴다
     local: bool = False
     default_url: str = ""
+    # 화면에서 고를 수 있는 모델 — (모델 이름, 화면에 쓸 말). 비어 있으면 고르는
+    # 칸이 안 뜨고 `default_model` 하나로 간다.
+    #
+    # **값을 적지 않는다**(`route.py` 「유료·무료를 적지 않는다」). 요금은 우리가
+    # 모르는 사이에 바뀌고, 틀린 값을 믿고 고른 사람이 손해를 본다. 서로의
+    # 크기만 말한다
+    model_choices: tuple[tuple[str, str], ...] = ()
 
 
 Transport = Callable[[str, dict[str, str], dict[str, Any]], tuple[int, str]]
@@ -664,6 +671,11 @@ class AnthropicProvider(Provider):
         key_url="https://platform.claude.com/settings/keys",
         note="내 Anthropic API 키로 Claude 를 직접 부른다. 쓴 만큼 크레딧이 나간다",
         default_model="claude-opus-5-5",
+        model_choices=(
+            ("claude-opus-5-5", "Opus 5.5 — 가장 꼼꼼함 · 크레딧이 가장 많이 듦"),
+            ("claude-sonnet-5-5", "Sonnet 5.5 — 그 사이"),
+            ("claude-haiku-5-5", "Haiku 5.5 — 가장 빠름 · 크레딧이 가장 적게 듦"),
+        ),
     )
 
     # 시험이 가짜로 바꿔 끼우는 자리
@@ -843,6 +855,28 @@ def available() -> list[ProviderInfo]:
     """UI에 보여 줄 목록. 복붙을 맨 앞에 둔다 — 키 없이 바로 되는 유일한 길이다."""
     infos = [cls.info for cls in REGISTRY.values()]
     return sorted(infos, key=lambda i: (_ORDER.index(i.id) if i.id in _ORDER else 99))
+
+
+def 고른모델(provider_id: str, settings: dict) -> str:
+    """이 공급자에 넘길 모델 이름. 비면 공급자 기본값을 쓴다.
+
+    **내 컴퓨터 AI 와 밖의 AI 는 칸이 다르다.** `translation.model` 은 내 컴퓨터
+    AI 의 것이다. 한 칸을 같이 쓰면 Ollama 에서 넣은 `qwen2.5:14b` 가 Claude 로
+    넘어가서 「그런 모델이 없다」 가 난다 — 실제로 그랬다. 밖의 AI 는 공급자마다
+    `translation.api_models` 에 따로 둔다.
+
+    밖의 AI 는 **목록에 있는 것만** 받는다. 손으로 고친 설정 파일이나 옛 판의
+    값이 틀려 있어도 번역이 404 로 멈추지 않고 기본값으로 간다.
+    """
+    번역 = (settings or {}).get("translation", {}) or {}
+    if is_local(provider_id):
+        return str(번역.get("model") or "")
+    cls = REGISTRY.get(provider_id)
+    if cls is None:
+        return ""
+    고른것 = str(((번역.get("api_models") or {}).get(provider_id)) or "")
+    되는것 = {이름 for 이름, _ in cls.info.model_choices}
+    return 고른것 if 고른것 in 되는것 else ""
 
 
 def is_local(provider_id: str) -> bool:

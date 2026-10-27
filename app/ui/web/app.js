@@ -23,6 +23,9 @@ const 화면 = {
 let 지금 = "work";
 let 마지막상태 = { jobs: [], providers: [], settings: {}, queue: { total: 0 } };
 let 고른공급자 = "manual";
+// 밖의 AI 마다 고른 모델. **화면이 들고 있는다** — 저장하고 상태가 돌아오기
+// 전에 다시 그리면 옛 값으로 되돌아가서, 고른 것이 한 번 튀었다가 돌아온다
+let 고른API모델 = {};
 let 지금프롬프트 = "";
 // 지시문 없는 판. 기계 번역기에 넣을 때 쓴다
 let 지금원문 = "";
@@ -4361,6 +4364,29 @@ function 설정그리기(처음) {
   $("lmstudio-note").hidden = 고른공급자 !== "lmstudio";
 
   $("api-key").value = 고른것.has_key ? "●●●●●●●●●●●●" : "";
+
+  // 모델 고르기 — 고를 것이 있는 공급자에만
+  const 모델들 = 고른것.model_choices || [];
+  $("api-model-field").hidden = !모델들.length || 로컬;
+  if (모델들.length) {
+    if (!(고른공급자 in 고른API모델)) {
+      고른API모델[고른공급자] = 고른것.chosen_model || 고른것.default_model || 모델들[0].id;
+    }
+    const 고르개 = $("api-model");
+    고르개.innerHTML = "";
+    for (const m of 모델들) {
+      const o = document.createElement("option");
+      o.value = m.id;
+      o.textContent = m.label;
+      o.selected = m.id === 고른API모델[고른공급자];
+      고르개.appendChild(o);
+    }
+    고르개.value = 고른API모델[고른공급자];
+    고르개.onchange = () => {
+      고른API모델[고른공급자] = 고르개.value;
+      설정저장();
+    };
+  }
   $("key-link").href = 고른것.key_url || "#";
   $("key-link").textContent = `${고른것.name || ""} 키 받으러 가기 →`;
 
@@ -4688,7 +4714,10 @@ async function 설정저장() {
           url: $("local-url").value.trim(),
           model: $("local-model").value.trim(),
         }
-      : { route: 고른길, 고친것 },
+      : 고른것.model_choices && 고른것.model_choices.length
+        ? { route: 고른길, 고친것,
+            api_models: { [고른공급자]: 고른API모델[고른공급자] || 고른것.default_model } }
+        : { route: 고른길, 고친것 },
     asr: {
       preset: 고른강도,
       device: $("asr-device").checked ? "cpu" : "cuda",

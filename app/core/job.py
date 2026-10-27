@@ -1270,7 +1270,7 @@ class Pipeline:
         provider = providers.create(
             chosen,
             api_key=settings_store.api_key(self.settings, chosen),
-            model=str(번역설정.get("model") or "") if 내컴퓨터 else "",
+            model=providers.고른모델(chosen, self.settings),
             url=str(번역설정.get("url") or "") if 내컴퓨터 else "",
         )
 

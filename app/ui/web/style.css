@@ -559,9 +559,13 @@ button { font: inherit; }
   font-size: var(--t-micro); line-height:1.45;
 }
 #work-side > #start { margin:0 10px 8px; }
+/* 작품 접기. **줄 맨 왼쪽, 모든 작품에.** 오른쪽 끝의 흐린 12.5px 글자일 때는
+   있는 줄을 아무도 몰랐다 — 「접히지도 않음」 제보가 두 번 왔다 */
 .wk-fold {
-  margin-left:auto; flex-shrink:0; padding:2px 6px; border-radius:var(--r-1);
-  color:var(--faint); font-size: var(--t-dense); cursor:pointer; line-height:1;
+  flex-shrink:0; width:28px; height:28px; margin:0 -4px 0 -2px;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:var(--r-1); color:var(--muted); font-size: var(--t-lead);
+  cursor:pointer; line-height:1;
 }
 .wk-fold:hover { color:var(--text); background:var(--panel-3); }
 .wk-head img { width:42px; height:42px; border-radius:var(--r-1); object-fit:cover; flex-shrink:0; }
